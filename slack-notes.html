@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Slack Notes</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Courier+Prime:wght@400;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f2eb;
+  --card: #fdfaf4;
+  --ink: #1a1a18;
+  --ink-light: #6b6860;
+  --ink-faint: #c8c4ba;
+  --accent: #c0392b;
+  --accent-light: rgba(192,57,43,0.08);
+  --border: #ddd9cf;
+  --radius: 12px;
+  --shadow: 0 2px 16px rgba(0,0,0,0.07);
+  --green: #1a7a4a;
+  --green-light: rgba(26,122,74,0.09);
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Lato', sans-serif;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.screen { display: none; flex-direction: column; flex: 1; }
+.screen.active { display: flex; }
+
+/* ─── SETUP ─── */
+#setupScreen {
+  padding-top: max(env(safe-area-inset-top), 20px);
+  padding-bottom: max(env(safe-area-inset-bottom), 24px);
+}
+.setup-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 24px 32px;
+  gap: 24px;
+  overflow-y: auto;
+}
+.wordmark {
+  font-family: 'Courier Prime', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wordmark::before {
+  content: '';
+  display: block;
+  width: 8px; height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+.setup-title { font-size: 26px; font-weight: 300; line-height: 1.3; }
+.setup-title strong { font-weight: 700; }
+
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field-label {
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+}
+.field-input {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 15px 16px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 14px;
+  color: var(--ink);
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+  box-shadow: var(--shadow);
+}
+.field-input:focus { border-color: var(--accent); }
+.field-input::placeholder { color: var(--ink-faint); }
+.field-hint { font-size: 12px; color: var(--ink-light); line-height: 1.55; }
+.field-hint a { color: var(--accent); text-decoration: none; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 17px;
+  font-family: 'Lato', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  width: 100%;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  margin-top: auto;
+}
+.btn-primary:active { opacity: 0.82; transform: scale(0.98); }
+.btn-secondary {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 17px;
+  font-family: 'Lato', sans-serif;
+  font-size: 15px;
+  color: var(--ink-light);
+  width: 100%;
+  cursor: pointer;
+}
+.btn-secondary:active { opacity: 0.7; }
+
+/* ─── MAIN ─── */
+#mainScreen {
+  padding-top: max(env(safe-area-inset-top), 0px);
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 12px;
+  border-bottom: 1.5px solid var(--border);
+  background: var(--card);
+}
+.channel-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-light);
+  border: 1px solid rgba(192,57,43,0.2);
+  border-radius: 999px;
+  padding: 7px 14px;
+}
+.channel-hash { color: var(--accent); font-weight: 700; font-size: 15px; }
+.channel-name {
+  font-family: 'Courier Prime', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gear-btn {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 17px;
+  color: var(--ink-light);
+}
+.gear-btn:active { border-color: var(--accent); color: var(--accent); }
+
+/* scrollable content */
+.main-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* meeting section */
+.section-label {
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: -4px;
+}
+
+.meeting-load-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  width: 100%;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: var(--shadow);
+}
+.meeting-load-btn:active { border-color: var(--accent); }
+.meeting-load-icon { font-size: 20px; }
+.meeting-load-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+.meeting-load-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.meeting-load-sub {
+  font-size: 12px;
+  color: var(--ink-light);
+}
+
+/* meeting list */
+.meeting-list { display: flex; flex-direction: column; gap: 8px; }
+
+.meeting-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: var(--shadow);
+}
+.meeting-item:active { transform: scale(0.98); }
+.meeting-item.selected {
+  border-color: var(--green);
+  background: var(--green-light);
+}
+.meeting-time-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 44px;
+  gap: 1px;
+}
+.meeting-time {
+  font-family: 'Courier Prime', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-light);
+  white-space: nowrap;
+}
+.meeting-item.selected .meeting-time { color: var(--green); }
+.meeting-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+.meeting-item.selected .meeting-dot { background: var(--green); }
+.meeting-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.35;
+}
+.meeting-check {
+  font-size: 16px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: var(--green);
+}
+.meeting-item.selected .meeting-check { opacity: 1; }
+
+/* selected meeting banner */
+.meeting-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--green-light);
+  border: 1px solid rgba(26,122,74,0.2);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.meeting-banner-icon { font-size: 18px; }
+.meeting-banner-text { flex: 1; }
+.meeting-banner-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green);
+  line-height: 1.3;
+}
+.meeting-banner-time {
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px;
+  color: var(--green);
+  opacity: 0.75;
+}
+.meeting-banner-clear {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--green);
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* type banner */
+.type-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--accent-light);
+  border: 1px solid rgba(192,57,43,0.2);
+  border-radius: 10px;
+  padding: 10px 14px;
+  min-height: 44px;
+}
+.type-banner.empty { background: transparent; border-color: var(--border); }
+.type-banner-emoji { font-size: 20px; }
+.type-banner-label {
+  font-family: 'Courier Prime', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.type-banner.empty .type-banner-label {
+  color: var(--ink-faint);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: 'Lato', sans-serif;
+  font-size: 14px;
+}
+
+.note-textarea {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  font-family: 'Lato', sans-serif;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--ink);
+  resize: none;
+  outline: none;
+  width: 100%;
+  height: 120px;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+  box-shadow: var(--shadow);
+}
+.note-textarea:focus { border-color: var(--accent); }
+.note-textarea::placeholder { color: var(--ink-faint); }
+
+.action-types {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.action-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: var(--shadow);
+}
+.action-type:active { transform: scale(0.94); }
+.action-type.selected {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.action-emoji { font-size: 22px; line-height: 1; }
+.action-label {
+  font-family: 'Courier Prime', monospace;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+  text-align: center;
+}
+.action-type.selected .action-label { color: var(--accent); font-weight: 700; }
+
+/* send bar */
+.send-bar {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  border-top: 1.5px solid var(--border);
+  background: var(--card);
+}
+.btn-clear {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 16px;
+  color: var(--ink-light);
+  font-size: 18px;
+  cursor: pointer;
+  height: 54px;
+  min-width: 54px;
+}
+.btn-clear:active { border-color: var(--accent); color: var(--accent); }
+.btn-send {
+  flex: 1;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  height: 54px;
+  font-family: 'Lato', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-send:active { opacity: 0.82; transform: scale(0.98); }
+.btn-send:disabled { opacity: 0.35; }
+.spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: none;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* toast */
+#toast {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+  left: 50%; transform: translateX(-50%) translateY(14px);
+  background: var(--ink);
+  color: #fff;
+  border-radius: 999px;
+  padding: 12px 22px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.22s, transform 0.22s;
+  pointer-events: none;
+  z-index: 200;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.success { background: var(--green); }
+#toast.error { background: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setupScreen" class="screen">
+  <div class="setup-inner">
+    <div class="wordmark">Slack Notes</div>
+    <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
+
+    <div class="field">
+      <div class="field-label">Slack Webhook URL</div>
+      <input class="field-input" type="url" id="webhookInput"
+        placeholder="https://hooks.slack.com/services/..."
+        autocomplete="off" autocorrect="off" spellcheck="false">
+      <p class="field-hint">
+        <a href="https://api.slack.com/apps" target="_blank">api.slack.com/apps</a>
+        → Your App → Incoming Webhooks → Add New Webhook
+      </p>
+    </div>
+
+    <div class="field">
+      <div class="field-label">Channel name</div>
+      <input class="field-input" type="text" id="channelInput"
+        placeholder="#general" autocomplete="off" autocorrect="off">
+    </div>
+
+    <button class="btn-primary" onclick="saveSetup()">Save & Open →</button>
+    <button class="btn-secondary" id="backBtn" onclick="goBack()" style="display:none">← Back</button>
+  </div>
+</div>
+
+<!-- MAIN SCREEN -->
+<div id="mainScreen" class="screen">
+
+  <div class="topbar">
+    <div class="channel-pill">
+      <span class="channel-hash">#</span>
+      <span class="channel-name" id="channelDisplay">channel</span>
+    </div>
+    <button class="gear-btn" onclick="openSettings()">⚙</button>
+  </div>
+
+  <div class="main-scroll">
+
+    <!-- Meeting section -->
+    <div class="section-label">Today's meeting</div>
+
+    <!-- Load button (shown when no meetings loaded) -->
+    <button class="meeting-load-btn" id="loadMeetingsBtn" onclick="loadMeetings()">
+      <span class="meeting-load-icon">📋</span>
+      <div class="meeting-load-text">
+        <span class="meeting-load-title">Load today's meetings</span>
+        <span class="meeting-load-sub">Run the Shortcut first, then tap here</span>
+      </div>
+    </button>
+
+    <!-- Meeting list (shown after loading) -->
+    <div class="meeting-list" id="meetingList" style="display:none"></div>
+
+    <!-- Selected meeting banner -->
+    <div class="meeting-banner" id="meetingBanner" style="display:none">
+      <span class="meeting-banner-icon">📅</span>
+      <div class="meeting-banner-text">
+        <div class="meeting-banner-title" id="bannerMeetingTitle"></div>
+        <div class="meeting-banner-time" id="bannerMeetingTime"></div>
+      </div>
+      <button class="meeting-banner-clear" onclick="clearMeeting()">✕</button>
+    </div>
+
+    <!-- Type banner -->
+    <div class="section-label">Message type</div>
+    <div class="type-banner empty" id="typeBanner">
+      <span class="type-banner-emoji" id="bannerEmoji"></span>
+      <span class="type-banner-label" id="bannerLabel">Pick a type below</span>
+    </div>
+
+    <!-- Action types -->
+    <div class="action-types" id="actionTypes"></div>
+
+    <!-- Note -->
+    <div class="section-label">Note</div>
+    <textarea class="note-textarea" id="noteText"
+      placeholder="Write your note…"
+      maxlength="3000"></textarea>
+
+  </div>
+
+  <div class="send-bar">
+    <button class="btn-clear" onclick="clearAll()">✕</button>
+    <button class="btn-send" id="sendBtn" onclick="sendNote()">
+      <span id="sendLabel">Send to Slack</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const ACTION_TYPES = [
+  { emoji: '🔄', label: 'Delegate',  prefix: '🔄 *Delegate:*' },
+  { emoji: '💡', label: 'Idea',      prefix: '💡 *Idea:*' },
+  { emoji: '📝', label: 'Note',      prefix: '📝 *Note:*' },
+  { emoji: '🔁', label: 'Follow Up', prefix: '🔁 *Follow Up:*' },
+  { emoji: '✅', label: 'Done',      prefix: '✅ *Done:*' },
+  { emoji: '🔴', label: 'Blocker',   prefix: '🔴 *Blocker:*' },
+  { emoji: '🚀', label: 'Ship',      prefix: '🚀 *Ship:*' },
+  { emoji: '❓', label: 'Question',  prefix: '❓ *Question:*' },
+];
+
+const STORAGE_KEY = 'slacknotes_v3';
+let selectedType = null;
+let selectedMeeting = null;
+let loadedMeetings = [];
+
+function loadCfg() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
+}
+function saveCfg(c) { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); }
+
+function init() {
+  renderActionTypes();
+  const cfg = loadCfg();
+  if (cfg.webhook && cfg.channel) {
+    showMain(cfg);
+  } else {
+    showScreen('setupScreen');
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showMain(cfg) {
+  document.getElementById('channelDisplay').textContent = cfg.channel.replace(/^#/, '');
+  showScreen('mainScreen');
+}
+
+function openSettings() {
+  const cfg = loadCfg();
+  document.getElementById('webhookInput').value = cfg.webhook || '';
+  document.getElementById('channelInput').value = cfg.channel ? '#' + cfg.channel.replace(/^#/, '') : '';
+  document.getElementById('setupTitle').innerHTML = 'Update your<br><strong>settings.</strong>';
+  document.getElementById('backBtn').style.display = 'block';
+  showScreen('setupScreen');
+}
+
+function goBack() {
+  const cfg = loadCfg();
+  if (cfg.webhook && cfg.channel) showMain(cfg);
+}
+
+function saveSetup() {
+  const webhook = document.getElementById('webhookInput').value.trim();
+  const channel = document.getElementById('channelInput').value.trim().replace(/^#/, '');
+  if (!webhook.startsWith('https://hooks.slack.com/')) {
+    toast('Enter a valid Slack webhook URL', 'error'); return;
+  }
+  if (!channel) { toast('Enter a channel name', 'error'); return; }
+  saveCfg({ webhook, channel });
+  showMain({ webhook, channel });
+  toast('Settings saved ✓', 'success');
+}
+
+// ── Meetings ──────────────────────────────────────
+async function loadMeetings() {
+  try {
+    const text = await navigator.clipboard.readText();
+    const data = JSON.parse(text);
+    if (!Array.isArray(data) || !data[0]?.title) throw new Error('bad format');
+    loadedMeetings = data;
+    renderMeetings(data);
+    toast('Meetings loaded ✓', 'success');
+  } catch {
+    toast('No meeting data found — run the Shortcut first', 'error');
+  }
+}
+
+function renderMeetings(meetings) {
+  const list = document.getElementById('meetingList');
+  const loadBtn = document.getElementById('loadMeetingsBtn');
+  list.innerHTML = '';
+
+  if (meetings.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--ink-faint);font-size:14px;">No meetings today</div>';
+    list.style.display = 'block';
+    loadBtn.style.display = 'none';
+    return;
+  }
+
+  meetings.forEach((m, i) => {
+    const el = document.createElement('div');
+    el.className = 'meeting-item';
+    el.innerHTML = `
+      <div class="meeting-time-block">
+        <span class="meeting-time">${m.time || ''}</span>
+        <div class="meeting-dot"></div>
+      </div>
+      <div class="meeting-title">${m.title}</div>
+      <span class="meeting-check">✓</span>
+    `;
+    el.onclick = () => selectMeeting(i);
+    list.appendChild(el);
+  });
+
+  list.style.display = 'flex';
+  loadBtn.style.display = 'none';
+}
+
+function selectMeeting(i) {
+  selectedMeeting = i;
+  const m = loadedMeetings[i];
+  document.querySelectorAll('.meeting-item').forEach((el, idx) => {
+    el.classList.toggle('selected', idx === i);
+  });
+  document.getElementById('meetingList').style.display = 'none';
+  const banner = document.getElementById('meetingBanner');
+  banner.style.display = 'flex';
+  document.getElementById('bannerMeetingTitle').textContent = m.title;
+  document.getElementById('bannerMeetingTime').textContent = m.time || '';
+}
+
+function clearMeeting() {
+  selectedMeeting = null;
+  document.getElementById('meetingBanner').style.display = 'none';
+  if (loadedMeetings.length > 0) {
+    document.getElementById('meetingList').style.display = 'flex';
+  } else {
+    document.getElementById('loadMeetingsBtn').style.display = 'flex';
+  }
+}
+
+// ── Action types ──────────────────────────────────
+function renderActionTypes() {
+  const container = document.getElementById('actionTypes');
+  ACTION_TYPES.forEach((t, i) => {
+    const el = document.createElement('div');
+    el.className = 'action-type';
+    el.innerHTML = `<span class="action-emoji">${t.emoji}</span><span class="action-label">${t.label}</span>`;
+    el.onclick = () => selectType(i);
+    container.appendChild(el);
+  });
+}
+
+function selectType(i) {
+  selectedType = i;
+  document.querySelectorAll('.action-type').forEach((el, idx) => {
+    el.classList.toggle('selected', idx === i);
+  });
+  const t = ACTION_TYPES[i];
+  const banner = document.getElementById('typeBanner');
+  banner.classList.remove('empty');
+  document.getElementById('bannerEmoji').textContent = t.emoji;
+  document.getElementById('bannerLabel').textContent = t.label;
+  document.getElementById('noteText').focus();
+}
+
+// ── Send ──────────────────────────────────────────
+async function sendNote() {
+  const cfg = loadCfg();
+  const text = document.getElementById('noteText').value.trim();
+  if (selectedType === null) { toast('Pick a message type first', 'error'); return; }
+  if (!text) { toast('Write your note first', 'error'); return; }
+
+  const t = ACTION_TYPES[selectedType];
+
+  // Build message
+  let message = `${t.prefix} ${text}`;
+  if (selectedMeeting !== null) {
+    const m = loadedMeetings[selectedMeeting];
+    message = `${t.prefix} ${text}\n> 📅 *${m.title}*${m.time ? '  ·  ' + m.time : ''}`;
+  }
+
+  const btn = document.getElementById('sendBtn');
+  const label = document.getElementById('sendLabel');
+  const spinner = document.getElementById('spinner');
+  btn.disabled = true;
+  label.style.display = 'none';
+  spinner.style.display = 'block';
+
+  try {
+    const res = await fetch(cfg.webhook, {
+      method: 'POST',
+      body: JSON.stringify({ message: message })
+    });
+    if (res.ok) {
+      toast('Sent to #' + cfg.channel.replace(/^#/, '') + ' ✓', 'success');
+      clearAll();
+    } else {
+      throw new Error(res.status);
+    }
+  } catch {
+    toast('Send failed — check webhook', 'error');
+  } finally {
+    btn.disabled = false;
+    label.style.display = 'inline';
+    spinner.style.display = 'none';
+  }
+}
+
+function clearAll() {
+  document.getElementById('noteText').value = '';
+  selectedType = null;
+  selectedMeeting = null;
+  loadedMeetings = [];
+  document.querySelectorAll('.action-type').forEach(el => el.classList.remove('selected'));
+  const tb = document.getElementById('typeBanner');
+  tb.classList.add('empty');
+  document.getElementById('bannerEmoji').textContent = '';
+  document.getElementById('bannerLabel').textContent = 'Pick a type below';
+  document.getElementById('meetingBanner').style.display = 'none';
+  document.getElementById('meetingList').style.display = 'none';
+  document.getElementById('loadMeetingsBtn').style.display = 'flex';
+}
+
+let toastTimer;
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + (type || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 2800);
+}
+
+init();
+</script>
+</body>
+</html>
