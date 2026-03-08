@@ -139,6 +139,7 @@ body {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
 }
 
+/* topbar */
 .topbar {
   display: flex;
   align-items: center;
@@ -146,6 +147,7 @@ body {
   padding: 14px 20px 12px;
   border-bottom: 1.5px solid var(--border);
   background: var(--card);
+  gap: 10px;
 }
 .channel-pill {
   display: flex;
@@ -155,19 +157,20 @@ body {
   border: 1px solid rgba(192,57,43,0.2);
   border-radius: 999px;
   padding: 7px 14px;
+  flex: 1;
+  min-width: 0;
 }
-.channel-hash { color: var(--accent); font-weight: 700; font-size: 15px; }
+.channel-hash { color: var(--accent); font-weight: 700; font-size: 15px; flex-shrink: 0; }
 .channel-name {
   font-family: 'Courier Prime', monospace;
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
-  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.gear-btn {
+.topbar-btn {
   background: none;
   border: 1.5px solid var(--border);
   border-radius: 10px;
@@ -176,10 +179,12 @@ body {
   cursor: pointer;
   font-size: 17px;
   color: var(--ink-light);
+  flex-shrink: 0;
+  transition: all 0.15s;
 }
-.gear-btn:active { border-color: var(--accent); color: var(--accent); }
+.topbar-btn:active { border-color: var(--accent); color: var(--accent); }
 
-/* scrollable content */
+/* main scroll */
 .main-scroll {
   flex: 1;
   overflow-y: auto;
@@ -189,167 +194,53 @@ body {
   gap: 14px;
 }
 
-/* meeting section */
 .section-label {
   font-family: 'Courier Prime', monospace;
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-faint);
-  margin-bottom: -4px;
+  margin-bottom: -6px;
 }
 
-.meeting-load-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--card);
-  border: 1.5px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
+/* ── Native-style meeting select ── */
+.meeting-select-wrap {
+  position: relative;
+}
+.meeting-select {
   width: 100%;
-  cursor: pointer;
-  transition: all 0.15s;
-  box-shadow: var(--shadow);
-}
-.meeting-load-btn:active { border-color: var(--accent); }
-.meeting-load-icon { font-size: 20px; }
-.meeting-load-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-}
-.meeting-load-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink);
-}
-.meeting-load-sub {
-  font-size: 12px;
-  color: var(--ink-light);
-}
-
-/* meeting list */
-.meeting-list { display: flex; flex-direction: column; gap: 8px; }
-
-.meeting-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   background: var(--card);
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 14px;
-  cursor: pointer;
-  transition: all 0.15s;
-  box-shadow: var(--shadow);
-}
-.meeting-item:active { transform: scale(0.98); }
-.meeting-item.selected {
-  border-color: var(--green);
-  background: var(--green-light);
-}
-.meeting-time-block {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 44px;
-  gap: 1px;
-}
-.meeting-time {
-  font-family: 'Courier Prime', monospace;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink-light);
-  white-space: nowrap;
-}
-.meeting-item.selected .meeting-time { color: var(--green); }
-.meeting-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--ink-faint);
-}
-.meeting-item.selected .meeting-dot { background: var(--green); }
-.meeting-title {
-  flex: 1;
-  font-size: 14px;
+  padding: 14px 44px 14px 16px;
+  font-family: 'Lato', sans-serif;
+  font-size: 15px;
   font-weight: 700;
   color: var(--ink);
-  line-height: 1.35;
-}
-.meeting-check {
-  font-size: 16px;
-  opacity: 0;
-  transition: opacity 0.15s;
-  color: var(--green);
-}
-.meeting-item.selected .meeting-check { opacity: 1; }
-
-/* selected meeting banner */
-.meeting-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--green-light);
-  border: 1px solid rgba(26,122,74,0.2);
-  border-radius: 10px;
-  padding: 10px 14px;
-}
-.meeting-banner-icon { font-size: 18px; }
-.meeting-banner-text { flex: 1; }
-.meeting-banner-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--green);
-  line-height: 1.3;
-}
-.meeting-banner-time {
-  font-family: 'Courier Prime', monospace;
-  font-size: 11px;
-  color: var(--green);
-  opacity: 0.75;
-}
-.meeting-banner-clear {
-  background: none;
-  border: none;
-  font-size: 16px;
-  color: var(--green);
-  opacity: 0.6;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  box-shadow: var(--shadow);
   cursor: pointer;
-  padding: 4px;
+  transition: border-color 0.2s;
+  line-height: 1.4;
 }
-
-/* type banner */
-.type-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--accent-light);
-  border: 1px solid rgba(192,57,43,0.2);
-  border-radius: 10px;
-  padding: 10px 14px;
-  min-height: 44px;
-}
-.type-banner.empty { background: transparent; border-color: var(--border); }
-.type-banner-emoji { font-size: 20px; }
-.type-banner-label {
-  font-family: 'Courier Prime', monospace;
+.meeting-select:focus { border-color: var(--accent); }
+.meeting-select option { font-weight: 400; }
+.meeting-select-arrow {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--ink-light);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
 }
-.type-banner.empty .type-banner-label {
-  color: var(--ink-faint);
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  font-family: 'Lato', sans-serif;
-  font-size: 14px;
-}
+.meeting-select.has-value { border-color: var(--green); color: var(--green); }
+.meeting-select.has-value + .meeting-select-arrow { color: var(--green); }
+.meeting-select.no-meetings { color: var(--ink-faint); font-weight: 400; font-style: italic; }
 
+/* note textarea */
 .note-textarea {
   background: var(--card);
   border: 1.5px solid var(--border);
@@ -362,7 +253,7 @@ body {
   resize: none;
   outline: none;
   width: 100%;
-  height: 120px;
+  height: 160px;
   transition: border-color 0.2s;
   -webkit-appearance: none;
   box-shadow: var(--shadow);
@@ -370,9 +261,10 @@ body {
 .note-textarea:focus { border-color: var(--accent); }
 .note-textarea::placeholder { color: var(--ink-faint); }
 
+/* ── Action icons ── */
 .action-types {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 .action-type {
@@ -383,21 +275,23 @@ body {
   background: var(--card);
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
-  padding: 10px 6px;
+  padding: 12px 6px;
   cursor: pointer;
   transition: all 0.15s;
   box-shadow: var(--shadow);
+  -webkit-tap-highlight-color: transparent;
 }
 .action-type:active { transform: scale(0.94); }
 .action-type.selected {
   border-color: var(--accent);
   background: var(--accent-light);
+  box-shadow: 0 0 0 3px rgba(192,57,43,0.1);
 }
-.action-emoji { font-size: 22px; line-height: 1; }
+.action-emoji { font-size: 24px; line-height: 1; }
 .action-label {
   font-family: 'Courier Prime', monospace;
-  font-size: 9px;
-  letter-spacing: 0.05em;
+  font-size: 10px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-light);
   text-align: center;
@@ -514,51 +408,30 @@ body {
       <span class="channel-hash">#</span>
       <span class="channel-name" id="channelDisplay">channel</span>
     </div>
-    <button class="gear-btn" onclick="openSettings()">⚙</button>
+    <button class="topbar-btn" onclick="pasteMeetings()" title="Paste meetings">📋</button>
+    <button class="topbar-btn" onclick="openSettings()" title="Settings">⚙</button>
   </div>
 
   <div class="main-scroll">
 
-    <!-- Meeting section -->
-    <div class="section-label">Today's meeting</div>
-
-    <!-- Load button (shown when no meetings loaded) -->
-    <button class="meeting-load-btn" id="loadMeetingsBtn" onclick="loadMeetings()">
-      <span class="meeting-load-icon">📋</span>
-      <div class="meeting-load-text">
-        <span class="meeting-load-title">Load today's meetings</span>
-        <span class="meeting-load-sub">Run the Shortcut first, then tap here</span>
-      </div>
-    </button>
-
-    <!-- Meeting list (shown after loading) -->
-    <div class="meeting-list" id="meetingList" style="display:none"></div>
-
-    <!-- Selected meeting banner -->
-    <div class="meeting-banner" id="meetingBanner" style="display:none">
-      <span class="meeting-banner-icon">📅</span>
-      <div class="meeting-banner-text">
-        <div class="meeting-banner-title" id="bannerMeetingTitle"></div>
-        <div class="meeting-banner-time" id="bannerMeetingTime"></div>
-      </div>
-      <button class="meeting-banner-clear" onclick="clearMeeting()">✕</button>
+    <!-- Meeting picker -->
+    <div class="section-label">Meeting</div>
+    <div class="meeting-select-wrap">
+      <select class="meeting-select no-meetings" id="meetingSelect" onchange="onMeetingChange()">
+        <option value="">No meetings — tap 📋 to paste</option>
+      </select>
+      <span class="meeting-select-arrow">▼</span>
     </div>
-
-    <!-- Type banner -->
-    <div class="section-label">Message type</div>
-    <div class="type-banner empty" id="typeBanner">
-      <span class="type-banner-emoji" id="bannerEmoji"></span>
-      <span class="type-banner-label" id="bannerLabel">Pick a type below</span>
-    </div>
-
-    <!-- Action types -->
-    <div class="action-types" id="actionTypes"></div>
 
     <!-- Note -->
     <div class="section-label">Note</div>
     <textarea class="note-textarea" id="noteText"
       placeholder="Write your note…"
       maxlength="3000"></textarea>
+
+    <!-- Action icons -->
+    <div class="section-label">Type</div>
+    <div class="action-types" id="actionTypes"></div>
 
   </div>
 
@@ -576,36 +449,44 @@ body {
 
 <script>
 const ACTION_TYPES = [
-  { emoji: '🔄', label: 'Delegate',  prefix: '🔄 *Delegate:*' },
-  { emoji: '💡', label: 'Idea',      prefix: '💡 *Idea:*' },
-  { emoji: '📝', label: 'Note',      prefix: '📝 *Note:*' },
-  { emoji: '🔁', label: 'Follow Up', prefix: '🔁 *Follow Up:*' },
-  { emoji: '✅', label: 'Done',      prefix: '✅ *Done:*' },
-  { emoji: '🔴', label: 'Blocker',   prefix: '🔴 *Blocker:*' },
-  { emoji: '🚀', label: 'Ship',      prefix: '🚀 *Ship:*' },
-  { emoji: '❓', label: 'Question',  prefix: '❓ *Question:*' },
+  { emoji: '👔', label: 'Manager',  tag: '👔 Manager'  },
+  { emoji: '🔄', label: 'Delegate', tag: '🔄 Delegate' },
+  { emoji: '✅', label: 'My ToDo',  tag: '✅ My ToDo'  },
+  { emoji: '📝', label: 'Notes',    tag: '📝 Notes'    },
+  { emoji: '💡', label: 'Ideas',    tag: '💡 Ideas'    },
+  { emoji: '👥', label: 'Group',    tag: '👥 Group'    },
 ];
 
-const STORAGE_KEY = 'slacknotes_v3';
-let selectedType = null;
-let selectedMeeting = null;
-let loadedMeetings = [];
+const STORAGE_KEY = 'slacknotes_v4';
+let selectedTypes = new Set();
+let meetings = [];
 
+// ── Storage ───────────────────────────────────────
 function loadCfg() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
 }
-function saveCfg(c) { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); }
+function saveCfg(updates) {
+  const cfg = loadCfg();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...cfg, ...updates }));
+}
 
+// ── Boot ─────────────────────────────────────────
 function init() {
   renderActionTypes();
   const cfg = loadCfg();
   if (cfg.webhook && cfg.channel) {
     showMain(cfg);
+    // Restore persisted meetings
+    if (cfg.meetings && Array.isArray(cfg.meetings) && cfg.meetings.length > 0) {
+      meetings = cfg.meetings;
+      populateMeetingSelect(meetings, true); // true = auto-select by time
+    }
   } else {
     showScreen('setupScreen');
   }
 }
 
+// ── Screens ───────────────────────────────────────
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -642,113 +523,163 @@ function saveSetup() {
   toast('Settings saved ✓', 'success');
 }
 
-// ── Meetings ──────────────────────────────────────
-async function loadMeetings() {
+// ── Paste & validate meetings ─────────────────────
+async function pasteMeetings() {
+  let text = '';
   try {
-    const text = await navigator.clipboard.readText();
-    const data = JSON.parse(text);
-    if (!Array.isArray(data) || !data[0]?.title) throw new Error('bad format');
-    loadedMeetings = data;
-    renderMeetings(data);
-    toast('Meetings loaded ✓', 'success');
+    text = await navigator.clipboard.readText();
   } catch {
-    toast('No meeting data found — run the Shortcut first', 'error');
-  }
-}
-
-function renderMeetings(meetings) {
-  const list = document.getElementById('meetingList');
-  const loadBtn = document.getElementById('loadMeetingsBtn');
-  list.innerHTML = '';
-
-  if (meetings.length === 0) {
-    list.innerHTML = '<div style="text-align:center;padding:16px;color:var(--ink-faint);font-size:14px;">No meetings today</div>';
-    list.style.display = 'block';
-    loadBtn.style.display = 'none';
+    toast('Clipboard access denied — allow it and try again', 'error');
     return;
   }
 
-  meetings.forEach((m, i) => {
-    const el = document.createElement('div');
-    el.className = 'meeting-item';
-    el.innerHTML = `
-      <div class="meeting-time-block">
-        <span class="meeting-time">${m.time || ''}</span>
-        <div class="meeting-dot"></div>
-      </div>
-      <div class="meeting-title">${m.title}</div>
-      <span class="meeting-check">✓</span>
-    `;
-    el.onclick = () => selectMeeting(i);
-    list.appendChild(el);
-  });
-
-  list.style.display = 'flex';
-  loadBtn.style.display = 'none';
-}
-
-function selectMeeting(i) {
-  selectedMeeting = i;
-  const m = loadedMeetings[i];
-  document.querySelectorAll('.meeting-item').forEach((el, idx) => {
-    el.classList.toggle('selected', idx === i);
-  });
-  document.getElementById('meetingList').style.display = 'none';
-  const banner = document.getElementById('meetingBanner');
-  banner.style.display = 'flex';
-  document.getElementById('bannerMeetingTitle').textContent = m.title;
-  document.getElementById('bannerMeetingTime').textContent = m.time || '';
-}
-
-function clearMeeting() {
-  selectedMeeting = null;
-  document.getElementById('meetingBanner').style.display = 'none';
-  if (loadedMeetings.length > 0) {
-    document.getElementById('meetingList').style.display = 'flex';
-  } else {
-    document.getElementById('loadMeetingsBtn').style.display = 'flex';
+  if (!text || !text.trim()) {
+    toast('Clipboard is empty — run the Shortcut first', 'error');
+    return;
   }
+
+  let data;
+  try {
+    data = JSON.parse(text.trim());
+  } catch {
+    toast('Invalid format — must be JSON array', 'error');
+    return;
+  }
+
+  if (!Array.isArray(data)) {
+    toast('Invalid format — expected a list of meetings', 'error');
+    return;
+  }
+
+  if (data.length === 0) {
+    toast('No meetings found in clipboard', 'error');
+    return;
+  }
+
+  const invalid = data.find(m => typeof m.title === 'undefined');
+  if (invalid) {
+    toast('Invalid format — each meeting needs a title', 'error');
+    return;
+  }
+
+  // Valid — save and populate
+  meetings = data;
+  saveCfg({ meetings });
+  populateMeetingSelect(meetings, true);
+  toast(data.length + ' meetings loaded ✓', 'success');
+}
+
+// ── Meeting select ────────────────────────────────
+function populateMeetingSelect(data, autoSelect) {
+  const sel = document.getElementById('meetingSelect');
+  sel.innerHTML = '';
+  sel.classList.remove('no-meetings', 'has-value');
+
+  // Blank option
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = '— No meeting —';
+  sel.appendChild(blank);
+
+  data.forEach((m, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = m.time ? m.time + '  ·  ' + m.title : m.title;
+    sel.appendChild(opt);
+  });
+
+  if (autoSelect && data.length > 0) {
+    const idx = smartSelectIndex(data);
+    sel.value = idx;
+    sel.classList.add('has-value');
+  }
+}
+
+function smartSelectIndex(data) {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  // Parse each meeting time to minutes
+  const parsed = data.map((m, i) => {
+    const mins = parseTimeMins(m.time);
+    return { i, mins };
+  });
+
+  // Find meeting happening now or most recently past
+  let best = 0;
+  for (let j = 0; j < parsed.length; j++) {
+    if (parsed[j].mins <= nowMins) {
+      best = j;
+    }
+  }
+  return best;
+}
+
+function parseTimeMins(timeStr) {
+  if (!timeStr) return 0;
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+  if (!match) return 0;
+  let h = parseInt(match[1]);
+  const m = parseInt(match[2]);
+  const period = (match[3] || '').toUpperCase();
+  if (period === 'PM' && h !== 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
+}
+
+function onMeetingChange() {
+  const sel = document.getElementById('meetingSelect');
+  sel.classList.toggle('has-value', sel.value !== '');
 }
 
 // ── Action types ──────────────────────────────────
 function renderActionTypes() {
   const container = document.getElementById('actionTypes');
+  container.innerHTML = '';
   ACTION_TYPES.forEach((t, i) => {
     const el = document.createElement('div');
     el.className = 'action-type';
+    el.id = 'action-' + i;
     el.innerHTML = `<span class="action-emoji">${t.emoji}</span><span class="action-label">${t.label}</span>`;
-    el.onclick = () => selectType(i);
+    el.onclick = () => toggleType(i);
     container.appendChild(el);
   });
 }
 
-function selectType(i) {
-  selectedType = i;
-  document.querySelectorAll('.action-type').forEach((el, idx) => {
-    el.classList.toggle('selected', idx === i);
-  });
-  const t = ACTION_TYPES[i];
-  const banner = document.getElementById('typeBanner');
-  banner.classList.remove('empty');
-  document.getElementById('bannerEmoji').textContent = t.emoji;
-  document.getElementById('bannerLabel').textContent = t.label;
-  document.getElementById('noteText').focus();
+function toggleType(i) {
+  if (selectedTypes.has(i)) {
+    selectedTypes.delete(i);
+    document.getElementById('action-' + i).classList.remove('selected');
+  } else {
+    selectedTypes.add(i);
+    document.getElementById('action-' + i).classList.add('selected');
+  }
 }
 
 // ── Send ──────────────────────────────────────────
 async function sendNote() {
   const cfg = loadCfg();
   const text = document.getElementById('noteText').value.trim();
-  if (selectedType === null) { toast('Pick a message type first', 'error'); return; }
+  const sel = document.getElementById('meetingSelect');
+
+  if (selectedTypes.size === 0) { toast('Pick at least one type', 'error'); return; }
   if (!text) { toast('Write your note first', 'error'); return; }
 
-  const t = ACTION_TYPES[selectedType];
+  // Build type prefix — plain text, no markdown
+  const typePrefix = Array.from(selectedTypes)
+    .sort()
+    .map(i => ACTION_TYPES[i].tag)
+    .join(' ');
 
   // Build message
-  let message = `${t.prefix} ${text}`;
-  if (selectedMeeting !== null) {
-    const m = loadedMeetings[selectedMeeting];
-    message = `${t.prefix} ${text}\n> 📅 *${m.title}*${m.time ? '  ·  ' + m.time : ''}`;
+  let message = typePrefix + ' — ' + text;
+
+  // Append meeting if selected
+  if (sel.value !== '') {
+    const m = meetings[parseInt(sel.value)];
+    if (m) {
+      message += '\n📅 ' + m.title + (m.time ? ' · ' + m.time : '');
+    }
   }
 
   const btn = document.getElementById('sendBtn');
@@ -761,11 +692,14 @@ async function sendNote() {
   try {
     const res = await fetch(cfg.webhook, {
       method: 'POST',
-      body: JSON.stringify({ message: message })
+      body: JSON.stringify({ text: message })
     });
     if (res.ok) {
       toast('Sent to #' + cfg.channel.replace(/^#/, '') + ' ✓', 'success');
-      clearAll();
+      // Clear note and types but keep meeting selection
+      document.getElementById('noteText').value = '';
+      selectedTypes.clear();
+      document.querySelectorAll('.action-type').forEach(el => el.classList.remove('selected'));
     } else {
       throw new Error(res.status);
     }
@@ -780,19 +714,14 @@ async function sendNote() {
 
 function clearAll() {
   document.getElementById('noteText').value = '';
-  selectedType = null;
-  selectedMeeting = null;
-  loadedMeetings = [];
+  selectedTypes.clear();
   document.querySelectorAll('.action-type').forEach(el => el.classList.remove('selected'));
-  const tb = document.getElementById('typeBanner');
-  tb.classList.add('empty');
-  document.getElementById('bannerEmoji').textContent = '';
-  document.getElementById('bannerLabel').textContent = 'Pick a type below';
-  document.getElementById('meetingBanner').style.display = 'none';
-  document.getElementById('meetingList').style.display = 'none';
-  document.getElementById('loadMeetingsBtn').style.display = 'flex';
+  const sel = document.getElementById('meetingSelect');
+  sel.value = '';
+  sel.classList.remove('has-value');
 }
 
+// ── Toast ─────────────────────────────────────────
 let toastTimer;
 function toast(msg, type) {
   const el = document.getElementById('toast');
