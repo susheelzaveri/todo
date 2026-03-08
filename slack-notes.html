@@ -665,22 +665,26 @@ async function sendNote() {
   if (selectedTypes.size === 0) { toast('Pick at least one type', 'error'); return; }
   if (!text) { toast('Write your note first', 'error'); return; }
 
-  // Build type prefix — plain text, no markdown
-  const typePrefix = Array.from(selectedTypes)
+  // Build type line
+  const typeLine = Array.from(selectedTypes)
     .sort()
     .map(i => ACTION_TYPES[i].tag)
-    .join(' ');
+    .join(' · ');
 
-  // Build message
-  let message = typePrefix + ' — ' + text;
+  // Build message — meeting first, then types, then note
+  let lines = [];
 
-  // Append meeting if selected
   if (sel.value !== '') {
     const m = meetings[parseInt(sel.value)];
     if (m) {
-      message += '\n📅 ' + m.title + (m.time ? ' · ' + m.time : '');
+      lines.push('🗓️ Meeting: ' + m.title + (m.time ? ' · ' + m.time : ''));
     }
   }
+
+  lines.push(typeLine);
+  lines.push(text);
+
+  const message = lines.join('\n');
 
   const btn = document.getElementById('sendBtn');
   const label = document.getElementById('sendLabel');
