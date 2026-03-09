@@ -763,20 +763,21 @@ function stopListening() {
 // ── Markdown → Slack mrkdwn ──────────────────────────────────────
 function toSlackMrkdwn(text) {
   return text
-    // Bold **text** or __text__ → *text*
+    // Normalize line endings
+    .replace(/\r\n/g, '\n')
+    // Bold: **text** → *text*
     .replace(/\*\*(.+?)\*\*/g, '*$1*')
-    .replace(/__(.+?)__/g, '*$1*')
-    // Strikethrough ~~text~~ → ~text~
+    // Strikethrough: ~~text~~ → ~text~
     .replace(/~~(.+?)~~/g, '~$1~')
-    // Headings ### text → *text* (bold, Slack has no headings in mrkdwn)
+    // Headings: ### text → *text*
     .replace(/^#{1,3} (.+)$/gm, '*$1*')
-    // Italic *text* or _text_ → _text_ (after bold so ** is already gone)
-    .replace(/\*(.+?)\*/g, '_$1_')
-    .replace(/_(.+?)_/g, '_$1_')
-    // Bullet - item → • item
+    // Italic: *text* → _text_ (must come after bold)
+    .replace(/\*([^*\n]+?)\*/g, '_$1_')
+    // Numbered list: "1. item" → "1. item" (keep as-is, ensure newline before each)
+    // Bullet: "- item" → "• item"
     .replace(/^- (.+)$/gm, '\u2022 $1')
-    // Blockquote > text → > text (Slack supports natively, no change needed)
-    // Inline code `code` → `code` (Slack supports natively, no change needed)
+    // Ensure blank line between prose and lists for Slack spacing
+    .replace(/([^\n])\n([\u2022\d])/g, '$1\n\n$2')
     .trim();
 }
 
@@ -798,7 +799,9 @@ async function sendNote() {
     if (m) lines.push('🗓️ Meeting: ' + m.title + (m.time ? ' · ' + m.time : ''));
   }
   lines.push(typeLine);
-  lines.push(toSlackMrkdwn(text));
+  // Ensure textarea newlines are real \n (iOS sometimes uses \r\n)
+  const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  lines.push(toSlackMrkdwn(cleanText));
   const message = lines.join('\n');
 
   const btn = document.getElementById('sendBtn');
