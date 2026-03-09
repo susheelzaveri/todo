@@ -673,6 +673,16 @@ function stopListening() {
   document.getElementById('transcriptPreview').textContent = '';
 }
 
+// Stop mic if page loses visibility (iPhone disconnects, screen locks, tab switches)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && isListening) stopListening();
+});
+
+// Stop mic if window loses focus (Mac: Continuity mic drops when iPhone disconnects)
+window.addEventListener('blur', () => {
+  if (isListening) stopListening();
+});
+
 // ── Send ──────────────────────────────────────────────────────────
 async function sendNote() {
   if (isListening) stopListening();
