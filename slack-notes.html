@@ -760,7 +760,27 @@ function stopListening() {
   document.getElementById('transcriptPreview').textContent = '';
 }
 
-// ── Send ──────────────────────────────────────────
+// ── Markdown → Slack mrkdwn ──────────────────────────────────────
+function toSlackMrkdwn(text) {
+  return text
+    // Bold **text** or __text__ → *text*
+    .replace(/\*\*(.+?)\*\*/g, '*$1*')
+    .replace(/__(.+?)__/g, '*$1*')
+    // Strikethrough ~~text~~ → ~text~
+    .replace(/~~(.+?)~~/g, '~$1~')
+    // Headings ### text → *text* (bold, Slack has no headings in mrkdwn)
+    .replace(/^#{1,3} (.+)$/gm, '*$1*')
+    // Italic *text* or _text_ → _text_ (after bold so ** is already gone)
+    .replace(/\*(.+?)\*/g, '_$1_')
+    .replace(/_(.+?)_/g, '_$1_')
+    // Bullet - item → • item
+    .replace(/^- (.+)$/gm, '\u2022 $1')
+    // Blockquote > text → > text (Slack supports natively, no change needed)
+    // Inline code `code` → `code` (Slack supports natively, no change needed)
+    .trim();
+}
+
+// ── Send ──────────────────────────────────────────────────────────
 async function sendNote() {
   if (isListening) stopListening();
   if (isPreviewing) togglePreview();
@@ -778,7 +798,7 @@ async function sendNote() {
     if (m) lines.push('🗓️ Meeting: ' + m.title + (m.time ? ' · ' + m.time : ''));
   }
   lines.push(typeLine);
-  lines.push(text);
+  lines.push(toSlackMrkdwn(text));
   const message = lines.join('\n');
 
   const btn = document.getElementById('sendBtn');
