@@ -458,9 +458,9 @@ function saveCfg(updates) {
 
 // ── Boot ─────────────────────────────────────────
 function init() {
-  renderActionTypes();
-  // Default: select Delegate (index 4)
+  // Default: select Delegate (index 4) BEFORE rendering so it renders highlighted
   selectedTypes.add(4);
+  renderActionTypes();
   initSpeech();
   const cfg = loadCfg();
   // Apply saved theme
@@ -554,6 +554,8 @@ async function pasteMeetings() {
 }
 
 // ── Meeting select ────────────────────────────────
+let meetingAutoTimer = null;
+
 function populateMeetingSelect(data, autoSelect) {
   const sel = document.getElementById('meetingSelect');
   sel.innerHTML = '';
@@ -570,6 +572,26 @@ function populateMeetingSelect(data, autoSelect) {
   if (autoSelect && data.length > 0) {
     sel.value = smartSelectIndex(data);
     sel.classList.add('has-value');
+  }
+  // Start auto-update interval (every 60s)
+  if (meetingAutoTimer) clearInterval(meetingAutoTimer);
+  if (data.length > 0) {
+    meetingAutoTimer = setInterval(() => autoUpdateMeeting(data), 300000); // every 5 min
+  }
+}
+
+function autoUpdateMeeting(data) {
+  const sel = document.getElementById('meetingSelect');
+  // Don't override if user has manually picked "No meeting"
+  if (!document.getElementById('meetingCheck').checked) return;
+  const best = String(smartSelectIndex(data));
+  if (sel.value !== best) {
+    sel.value = best;
+    sel.classList.toggle('has-value', best !== '');
+    // Brief flash to signal the update
+    sel.style.transition = 'opacity 0.3s';
+    sel.style.opacity = '0.4';
+    setTimeout(() => sel.style.opacity = '1', 300);
   }
 }
 function smartSelectIndex(data) {
