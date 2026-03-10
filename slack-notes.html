@@ -935,17 +935,22 @@ async function sendNote() {
     const res = await fetch(cfg.webhook, { method: 'POST', body: JSON.stringify({ message }) });
     if (res.ok) {
       toast('Sent to #' + cfg.channel.replace(/^#/, '') + ' ✓', 'success');
-      // Auto-add to todo list if My ToDo type was selected (index 6)
-      if (selectedTypes.has(1)) {
-        const meetingEl = document.getElementById('meetingSelect');
-        const meetingCtx = (document.getElementById('meetingCheck').checked && meetingEl.value !== '')
-          ? (meetings[parseInt(meetingEl.value)] ? meetings[parseInt(meetingEl.value)].title : '') : '';
-        // Split note into individual tasks, one per line, ignore blank lines
-        text.split('\n').forEach(function(line) {
-          const task = line.trim();
-          if (task) addTodo(task, meetingCtx);
-        });
-      }
+      // Add to To Do tab for Notes (0→'notes'), My ToDo (1→'do'), Ideas (2→'ideas')
+      const todoTypeMap = { 0: 'notes', 1: 'do', 2: 'ideas' };
+      const meetingEl = document.getElementById('meetingSelect');
+      const meetingCtx = (document.getElementById('meetingCheck').checked && meetingEl.value !== '')
+        ? (meetings[parseInt(meetingEl.value)] ? meetings[parseInt(meetingEl.value)].title : '') : '';
+      let addedToTodo = false;
+      Object.keys(todoTypeMap).forEach(function(idx) {
+        if (selectedTypes.has(Number(idx))) {
+          const cat = todoTypeMap[idx];
+          text.split('\n').forEach(function(line) {
+            const task = line.trim();
+            if (task) { addTodoWithCat(task, meetingCtx, cat); addedToTodo = true; }
+          });
+        }
+      });
+      if (addedToTodo) updateTodoBadge();
       document.getElementById('noteText').value = '';
       localStorage.removeItem(DRAFT_KEY);
       showDraftIndicator('—', false);
@@ -1097,10 +1102,13 @@ function renderTodos() {
   updateTodoBadge();
 }
 
-function addTodo(text, meeting) {
-  todos.push({ id: Date.now() * 1000 + todos.length, text: text, meeting: meeting || '', cat: 'do', date: '' });
+function addTodoWithCat(text, meeting, cat) {
+  todos.push({ id: Date.now() * 1000 + todos.length, text: text, meeting: meeting || '', cat: cat || 'do', date: '' });
   saveTodos();
   if (document.getElementById('todoScreen').classList.contains('active')) renderTodos();
+}
+function addTodo(text, meeting) {
+  addTodoWithCat(text, meeting, 'do');
 }
 
 function moveTodo(id, newCat) {
