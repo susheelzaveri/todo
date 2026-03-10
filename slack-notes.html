@@ -119,9 +119,9 @@ input[type="color"] {
   padding-bottom: max(env(safe-area-inset-bottom), 0px);
 }
 .topbar {
-  display: flex; align-items: center;
-  padding: 14px 20px 12px; border-bottom: 1.5px solid var(--border);
-  background: var(--card); gap: 10px;
+  display: flex; align-items: stretch;
+  border-bottom: 1.5px solid var(--border);
+  background: var(--card); flex-direction: column;
 }
 .channel-pill {
   display: flex; align-items: center; gap: 6px;
@@ -230,7 +230,7 @@ input[type="color"] {
 
 /* action types */
 .action-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.action-type:last-child { grid-column: 2; }
+/* no last-child centering needed */
 .action-type {
   display: flex; flex-direction: column; align-items: center; gap: 5px;
   background: var(--card); border: 1.5px solid var(--border);
@@ -286,6 +286,139 @@ input[type="color"] {
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 #toast.success { background: var(--green); }
 #toast.error { background: #c0392b; }
+
+/* ─── Header tabs ─── */
+.topbar {
+  flex-direction: column;
+  padding: 0;
+  gap: 0;
+}
+.tab-header {
+  display: flex; width: 100%;
+  border-bottom: 1.5px solid var(--border);
+}
+.tab-hdr-btn {
+  flex: 1; padding: 13px 0; background: none; border: none;
+  font-family: 'Lato', sans-serif; font-size: 14px; font-weight: 700;
+  color: var(--ink-faint); cursor: pointer; position: relative;
+  transition: color 0.15s; letter-spacing: 0.02em;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-hdr-btn.active { color: var(--accent); }
+.tab-hdr-btn.active::after {
+  content: ''; position: absolute; bottom: -1.5px; left: 20%; right: 20%;
+  height: 2.5px; background: var(--accent); border-radius: 2px;
+}
+.tab-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff;
+  font-family: 'Lato', sans-serif; font-size: 10px; font-weight: 700;
+  border-radius: 999px; min-width: 16px; height: 16px;
+  padding: 0 4px; margin-left: 5px; vertical-align: middle;
+  opacity: 0; transition: opacity 0.2s;
+}
+.tab-badge.visible { opacity: 1; }
+.topbar-actions {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px;
+}
+.topbar-actions .channel-pill { flex: 1; }
+.todo-header-count {
+  font-family: 'Courier Prime', monospace; font-size: 11px;
+  color: var(--ink-faint); letter-spacing: 0.06em; flex: 1;
+}
+
+/* ─── Todo screen ─── */
+.todo-scroll {
+  flex: 1; overflow-y: auto;
+  padding: 16px 20px 32px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.todo-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  color: var(--ink-faint); padding-bottom: 80px;
+}
+.todo-empty-icon { font-size: 44px; }
+.todo-empty-text {
+  font-family: 'Courier Prime', monospace; font-size: 13px;
+  letter-spacing: 0.04em; text-align: center; line-height: 1.7;
+}
+
+/* Category section */
+.todo-category {
+  display: flex; flex-direction: column; gap: 0;
+  border-radius: var(--radius); overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.todo-cat-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  font-family: 'Courier Prime', monospace; font-size: 11px;
+  font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.todo-cat-header .cat-count {
+  font-size: 10px; opacity: 0.7; font-weight: 400;
+}
+
+/* Category colour tokens */
+/* category colours applied via inline CSS vars */
+
+.todo-cat-header { background: var(--cat-hd); color: #fff; }
+
+/* Task row */
+.todo-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 16px;
+  background: var(--cat-bg);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  cursor: pointer; transition: opacity 0.25s, transform 0.25s;
+  -webkit-tap-highlight-color: transparent;
+}
+.todo-row:last-child { border-bottom: none; }
+.todo-row.alt { background: var(--cat-stripe); }
+.todo-row:active { opacity: 0.7; }
+
+/* Check circle */
+.todo-row-check {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--cat-hd); flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.todo-row:active .todo-row-check { background: var(--cat-hd); }
+
+/* Task body */
+.todo-row-body { flex: 1; min-width: 0; }
+.todo-row-text { font-size: 15px; line-height: 1.5; color: var(--ink); word-break: break-word; }
+.todo-row-meta {
+  display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap; align-items: center;
+}
+.todo-row-meeting {
+  font-family: 'Courier Prime', monospace; font-size: 10px;
+  color: var(--ink-light); letter-spacing: 0.03em;
+}
+.todo-row-date {
+  font-family: 'Courier Prime', monospace; font-size: 10px;
+  background: rgba(0,0,0,0.08); border-radius: 4px;
+  padding: 1px 6px; color: var(--ink-light);
+}
+.todo-row-date.overdue { background: rgba(192,57,43,0.15); color: #c0392b; }
+
+/* Move menu */
+.todo-row-actions {
+  display: flex; flex-direction: column; gap: 4px; flex-shrink: 0;
+}
+.todo-move-btn {
+  background: rgba(0,0,0,0.08); border: none; border-radius: 6px;
+  padding: 3px 7px; font-size: 10px; font-family: 'Courier Prime', monospace;
+  color: var(--ink-light); cursor: pointer; letter-spacing: 0.03em;
+  -webkit-tap-highlight-color: transparent;
+}
+.todo-move-btn:active { background: var(--cat-hd); color: #fff; }
+
+/* Completing animation */
+.todo-row.completing { opacity: 0; transform: translateX(48px); }
 </style>
 </head>
 <body>
@@ -327,12 +460,20 @@ input[type="color"] {
 <div id="mainScreen" class="screen">
 
   <div class="topbar">
-    <div class="channel-pill">
-      <span class="channel-hash">#</span>
-      <span class="channel-name" id="channelDisplay">channel</span>
+    <div class="tab-header">
+      <button class="tab-hdr-btn active" id="tabNotes" onclick="switchTab('notes')">📝 Notes</button>
+      <button class="tab-hdr-btn" id="tabTodo" onclick="switchTab('todo')">
+        ✅ To Do<span class="tab-badge" id="todoBadge"></span>
+      </button>
     </div>
-    <button class="topbar-btn" onclick="pasteMeetings()" title="Paste meetings">📋</button>
-    <button class="topbar-btn" onclick="openSettings()" title="Settings">⚙</button>
+    <div class="topbar-actions">
+      <div class="channel-pill">
+        <span class="channel-hash">#</span>
+        <span class="channel-name" id="channelDisplay">channel</span>
+      </div>
+      <button class="topbar-btn" onclick="pasteMeetings()" title="Paste meetings">📋</button>
+      <button class="topbar-btn" onclick="openSettings()" title="Settings">⚙</button>
+    </div>
   </div>
 
   <div class="main-scroll">
@@ -379,17 +520,41 @@ input[type="color"] {
 
 </div>
 
+<!-- TODO SCREEN -->
+<div id="todoScreen" class="screen">
+
+  <div class="topbar">
+    <div class="tab-header">
+      <button class="tab-hdr-btn" id="tabNotes2" onclick="switchTab('notes')">📝 Notes</button>
+      <button class="tab-hdr-btn active" id="tabTodo2" onclick="switchTab('todo')">
+        ✅ To Do<span class="tab-badge" id="todoBadge2"></span>
+      </button>
+    </div>
+    <div class="topbar-actions">
+      <span class="todo-header-count" id="todoCount"></span>
+      <button class="topbar-btn" onclick="openSettings()" title="Settings">⚙</button>
+    </div>
+  </div>
+
+  <div class="todo-scroll" id="todoScroll">
+    <div class="todo-empty" id="todoEmpty">
+      <div class="todo-empty-icon">🎉</div>
+      <div class="todo-empty-text">Nothing to do!<br>Send a note tagged ✅ My ToDo<br>and it will appear here.</div>
+    </div>
+  </div>
+
+</div>
+
 <div id="toast"></div>
 
 <script>
 const ACTION_TYPES = [
   { emoji: '📝', label: 'Notes',    tag: '📝 Notes'    },
+  { emoji: '✅', label: 'My ToDo',  tag: '✅ My ToDo'  },
   { emoji: '💡', label: 'Ideas',    tag: '💡 Ideas'    },
-  { emoji: '🙋', label: 'Personal', tag: '🙋 Personal' },
   { emoji: '👔', label: 'Manager',  tag: '👔 Manager'  },
   { emoji: '🔄', label: 'Delegate', tag: '🔄 Delegate' },
   { emoji: '👥', label: 'Group',    tag: '👥 Group'    },
-  { emoji: '✅', label: 'My ToDo',  tag: '✅ My ToDo'  },
 ];
 
 const STORAGE_KEY = 'slacknotes_v4';
@@ -465,6 +630,8 @@ function init() {
   const cfg = loadCfg();
   // Apply saved theme
   applyTheme(cfg.theme || '#2d6a4f');
+  loadTodos();
+  updateTodoBadge();
   if (cfg.webhook && cfg.channel) {
     showMain(cfg);
   } else {
@@ -541,16 +708,50 @@ async function pasteMeetings() {
   try { text = await navigator.clipboard.readText(); }
   catch { toast('Clipboard access denied — allow it and try again', 'error'); return; }
   if (!text || !text.trim()) { toast('Clipboard is empty — run the Shortcut first', 'error'); return; }
-  let data;
-  try { data = JSON.parse(text.trim()); }
-  catch { toast('Invalid format — must be JSON array', 'error'); return; }
-  if (!Array.isArray(data)) { toast('Invalid format — expected a list of meetings', 'error'); return; }
-  if (data.length === 0) { toast('No meetings found in clipboard', 'error'); return; }
-  if (data.find(m => typeof m.title === 'undefined')) { toast('Invalid format — each meeting needs a title', 'error'); return; }
-  meetings = data;
-  saveCfg({ meetings });
-  populateMeetingSelect(meetings, true);
-  toast(data.length + ' meetings loaded ✓', 'success');
+
+  let obj;
+  try { obj = JSON.parse(text.trim()); }
+  catch { toast('Invalid JSON — check format', 'error'); return; }
+
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    toast('Expected a JSON object { meetings, todos }', 'error'); return;
+  }
+
+  let meetingsLoaded = 0, todosLoaded = 0;
+
+  // meetings key
+  if (Array.isArray(obj.meetings) && obj.meetings.length > 0) {
+    meetings = obj.meetings;
+    saveCfg({ meetings });
+    populateMeetingSelect(meetings, true);
+    meetingsLoaded = meetings.length;
+  }
+
+  // todos key
+  if (obj.todos && typeof obj.todos === 'object' && !Array.isArray(obj.todos)) {
+    todos = [];
+    let added = 0;
+    Object.keys(obj.todos).forEach(function(cat) {
+      if (Array.isArray(obj.todos[cat])) {
+        obj.todos[cat].forEach(function(taskText) {
+          if (typeof taskText === 'string' && taskText.trim()) {
+            todos.push({ id: Date.now() * 1000 + added, text: taskText.trim(), meeting: '', cat: cat.toLowerCase(), date: '' });
+            added++;
+          }
+        });
+      }
+    });
+    saveTodos();
+    todosLoaded = added;
+  }
+
+  if (meetingsLoaded === 0 && todosLoaded === 0) {
+    toast('Nothing loaded — check meetings and todos keys', 'error'); return;
+  }
+  const parts = [];
+  if (meetingsLoaded) parts.push(meetingsLoaded + ' meetings');
+  if (todosLoaded) parts.push(todosLoaded + ' tasks');
+  toast(parts.join(' & ') + ' loaded ✓', 'success');
 }
 
 // ── Meeting select ────────────────────────────────
@@ -734,6 +935,17 @@ async function sendNote() {
     const res = await fetch(cfg.webhook, { method: 'POST', body: JSON.stringify({ message }) });
     if (res.ok) {
       toast('Sent to #' + cfg.channel.replace(/^#/, '') + ' ✓', 'success');
+      // Auto-add to todo list if My ToDo type was selected (index 6)
+      if (selectedTypes.has(1)) {
+        const meetingEl = document.getElementById('meetingSelect');
+        const meetingCtx = (document.getElementById('meetingCheck').checked && meetingEl.value !== '')
+          ? (meetings[parseInt(meetingEl.value)] ? meetings[parseInt(meetingEl.value)].title : '') : '';
+        // Split note into individual tasks, one per line, ignore blank lines
+        text.split('\n').forEach(function(line) {
+          const task = line.trim();
+          if (task) addTodo(task, meetingCtx);
+        });
+      }
       document.getElementById('noteText').value = '';
       localStorage.removeItem(DRAFT_KEY);
       showDraftIndicator('—', false);
@@ -763,6 +975,175 @@ function toast(msg, type) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.className = '', 2800);
 }
+
+// ── Todo ───────────────────────────────────────────────
+const TODO_KEY = 'slacknotes_todos';
+// Fixed colours for the 4 core categories
+const CORE_CATS = {
+  'do':       { label: '🎯 Do',       hd: '#2d6a4f', bg: '#e8f5f0', stripe: '#ddf0e8' },
+  'delegate': { label: '🤝 Delegate',  hd: '#1a56db', bg: '#e8f0fb', stripe: '#dde8f8' },
+  'decide':   { label: '🤔 Decide',    hd: '#d4620a', bg: '#fdf3e3', stripe: '#faecd6' },
+  'delete':   { label: '🗑️ Delete', hd: '#c0392b', bg: '#fdecea', stripe: '#fae0dd' },
+};
+// Palette for dynamic categories
+const DYN_PALETTE = [
+  { hd: '#6c3fc9', bg: '#f0ebfd', stripe: '#e8e0fb' },
+  { hd: '#0d7377', bg: '#e4f4f4', stripe: '#d6eeee' },
+  { hd: '#c2185b', bg: '#fde8f1', stripe: '#fad8e8' },
+  { hd: '#5a7a00', bg: '#eef4d6', stripe: '#e4f0c4' },
+  { hd: '#7b5800', bg: '#fdf2e0', stripe: '#faecd2' },
+  { hd: '#00695c', bg: '#e0f4f1', stripe: '#d0eee9' },
+];
+const dynColorCache = {};
+function getCatColors(catId) {
+  if (CORE_CATS[catId]) return CORE_CATS[catId];
+  if (!dynColorCache[catId]) {
+    // Deterministic pick from palette based on string hash
+    let hash = 0;
+    for (let i = 0; i < catId.length; i++) hash = (hash * 31 + catId.charCodeAt(i)) & 0xffffffff;
+    const palette = DYN_PALETTE[Math.abs(hash) % DYN_PALETTE.length];
+    const label = catId.charAt(0).toUpperCase() + catId.slice(1);
+    dynColorCache[catId] = { label: '📌 ' + label, hd: palette.hd, bg: palette.bg, stripe: palette.stripe };
+  }
+  return dynColorCache[catId];
+}
+function getCatOrder(catId) {
+  const fixed = ['do','delegate','decide','delete'];
+  const idx = fixed.indexOf(catId);
+  return idx >= 0 ? idx : 999;
+}
+let todos = [];
+
+function loadTodos() {
+  try { todos = JSON.parse(localStorage.getItem(TODO_KEY)) || []; }
+  catch { todos = []; }
+  // Sanitise: remove items with missing text or id, dedupe IDs
+  const seen = new Set();
+  todos = todos.filter(function(t) {
+    if (!t || !t.text || !t.text.trim()) return false;
+    if (!t.cat) t.cat = 'do';
+    if (seen.has(t.id)) return false;
+    seen.add(t.id);
+    return true;
+  });
+}
+function saveTodos() {
+  localStorage.setItem(TODO_KEY, JSON.stringify(todos));
+  updateTodoBadge();
+}
+function updateTodoBadge() {
+  const count = todos.length;
+  ['todoBadge','todoBadge2'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = count || '';
+    el.classList.toggle('visible', count > 0);
+  });
+  const countEl = document.getElementById('todoCount');
+  if (countEl) countEl.textContent = count > 0 ? count + ' task' + (count !== 1 ? 's' : '') : 'All clear ✓';
+}
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function isOverdue(iso) {
+  if (!iso) return false;
+  return new Date(iso + 'T00:00:00') < new Date(new Date().toDateString());
+}
+
+function renderTodos() {
+  const scroll = document.getElementById('todoScroll');
+  const empty  = document.getElementById('todoEmpty');
+  if (!scroll) return;
+  scroll.querySelectorAll('.todo-category').forEach(function(el) { el.remove(); });
+  if (todos.length === 0) { empty.style.display = 'flex'; updateTodoBadge(); return; }
+  empty.style.display = 'none';
+  // Discover all unique categories in current todos, sorted fixed-first then alpha
+  const catIds = [];
+  todos.forEach(function(t) { if (catIds.indexOf(t.cat) === -1) catIds.push(t.cat); });
+  catIds.sort(function(a, b) { return getCatOrder(a) - getCatOrder(b) || a.localeCompare(b); });
+  catIds.forEach(function(catId) {
+    const col = getCatColors(catId);
+    const items = todos.filter(function(t) { return t.cat === catId; });
+    if (items.length === 0) return;
+    const section = document.createElement('div');
+    section.className = 'todo-category';
+    section.style.setProperty('--cat-hd', col.hd);
+    section.style.setProperty('--cat-bg', col.bg);
+    section.style.setProperty('--cat-stripe', col.stripe);
+    const hdr = document.createElement('div');
+    hdr.className = 'todo-cat-header';
+    hdr.innerHTML = '<span>' + col.label + '</span><span class="cat-count">' + items.length + ' task' + (items.length !== 1 ? 's' : '') + '</span>';
+    section.appendChild(hdr);
+    items.forEach(function(t, idx) {
+      const row = document.createElement('div');
+      row.className = 'todo-row' + (idx % 2 === 1 ? ' alt' : '');
+      row.id = 'todo-' + t.id;
+      const overdueCls = isOverdue(t.date) ? ' overdue' : '';
+      const dateHtml = t.date ? '<span class="todo-row-date' + overdueCls + '">' + formatDate(t.date) + '</span>' : '';
+      const meetHtml = t.meeting ? '<span class="todo-row-meeting">🗓️ ' + escapeHtml(t.meeting) + '</span>' : '';
+      const metaHtml = (dateHtml || meetHtml) ? '<div class="todo-row-meta">' + meetHtml + dateHtml + '</div>' : '';
+      row.innerHTML = '<div class="todo-row-check"></div>'
+        + '<div class="todo-row-body"><div class="todo-row-text">' + escapeHtml(t.text) + '</div>' + metaHtml + '</div>';
+      row.querySelector('.todo-row-check').addEventListener('click', function(e) { e.stopPropagation(); completeTodo(t.id); });
+      section.appendChild(row);
+    });
+    scroll.appendChild(section);
+  });
+  updateTodoBadge();
+}
+
+function addTodo(text, meeting) {
+  todos.push({ id: Date.now() * 1000 + todos.length, text: text, meeting: meeting || '', cat: 'do', date: '' });
+  saveTodos();
+  if (document.getElementById('todoScreen').classList.contains('active')) renderTodos();
+}
+
+function moveTodo(id, newCat) {
+  const t = todos.find(function(t) { return t.id === id; });
+  if (t) { t.cat = newCat; saveTodos(); renderTodos(); }
+}
+
+async function completeTodo(id) {
+  const todo = todos.find(function(t) { return t.id === id; });
+  if (!todo) return;
+  const cfg = loadCfg();
+  if (!cfg.webhook) { toast('No webhook configured', 'error'); return; }
+  // Animate
+  const el = document.getElementById('todo-' + id);
+  if (el) el.style.opacity = '0.4';
+  const msg = '✅ Done: ' + todo.text + (todo.meeting ? '\n🗓️ ' + todo.meeting : '');
+  let ok = false;
+  try {
+    const res = await fetch(cfg.webhook, { method: 'POST', body: JSON.stringify({ message: msg }) });
+    ok = res.ok;
+  } catch(e) { ok = false; }
+  if (!ok) {
+    if (el) el.style.opacity = '';
+    toast('Send failed — task kept', 'error');
+    return;
+  }
+  // Slack confirmed — now remove
+  if (el) { el.classList.add('completing'); await new Promise(function(r) { setTimeout(r, 260); }); }
+  todos = todos.filter(function(t) { return t.id !== id; });
+  saveTodos();
+  renderTodos();
+  toast('Done & sent to Slack ✓', 'success');
+}
+
+function switchTab(tab) {
+  const isNotes = tab === 'notes';
+  document.getElementById('mainScreen').classList.toggle('active', isNotes);
+  document.getElementById('todoScreen').classList.toggle('active', !isNotes);
+  ['tabNotes','tabNotes2'].forEach(function(id) { const el=document.getElementById(id); if(el) el.classList.toggle('active', isNotes); });
+  ['tabTodo','tabTodo2'].forEach(function(id) { const el=document.getElementById(id); if(el) el.classList.toggle('active', !isNotes); });
+  if (!isNotes) renderTodos();
+}
+
 
 init();
 </script>
