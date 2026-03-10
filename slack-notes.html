@@ -48,6 +48,7 @@ body { display: flex; flex-direction: column; min-height: 100dvh; }
 .wordmark {
   font-family: 'Courier Prime', monospace; font-size: 14px; font-weight: 700;
   letter-spacing: 0.08em; color: var(--accent); text-transform: uppercase;
+  display: flex; align-items: baseline; gap: 8px;
   display: flex; align-items: center; gap: 8px;
 }
 .wordmark::before {
@@ -451,6 +452,10 @@ input[type="color"] {
   font-family: 'Courier Prime', monospace; font-size: 10px;
   color: var(--ink-faint); letter-spacing: 0.05em; padding: 10px 20px 0;
 }
+.version-tag {
+  font-family: 'Courier Prime', monospace; font-size: 10px; font-weight: 400;
+  color: var(--ink-faint); letter-spacing: 0.06em; text-transform: uppercase;
+}
 </style>
 </head>
 <body>
@@ -458,7 +463,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes</div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v1.5</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
