@@ -1152,6 +1152,42 @@ function switchTab(tab) {
   if (!isNotes) renderTodos();
 }
 
+// ── Swipe to switch tabs ──────────────────────────
+(function() {
+  var startX = 0, startY = 0, startTime = 0;
+  var SWIPE_MIN = 50, SWIPE_MAX_Y = 80, SWIPE_MAX_MS = 400;
+
+  function currentTab() {
+    return document.getElementById('mainScreen').classList.contains('active') ? 'notes' : 'todo';
+  }
+
+  function onTouchStart(e) {
+    // Ignore if touch starts on a select, button, or scrollable todo list
+    var tag = e.target.tagName;
+    if (tag === 'SELECT' || tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    startTime = Date.now();
+  }
+
+  function onTouchEnd(e) {
+    if (!startX) return;
+    var dx = e.changedTouches[0].clientX - startX;
+    var dy = e.changedTouches[0].clientY - startY;
+    var dt = Date.now() - startTime;
+    startX = 0;
+    if (dt > SWIPE_MAX_MS) return;
+    if (Math.abs(dy) > SWIPE_MAX_Y) return;
+    if (Math.abs(dx) < SWIPE_MIN) return;
+    var cur = currentTab();
+    if (dx < 0 && cur === 'notes') switchTab('todo');   // swipe left  → To Do
+    if (dx > 0 && cur === 'todo')  switchTab('notes');  // swipe right → Notes
+  }
+
+  document.addEventListener('touchstart', onTouchStart, { passive: true });
+  document.addEventListener('touchend',   onTouchEnd,   { passive: true });
+})();
+
 
 init();
 </script>
