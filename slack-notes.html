@@ -456,6 +456,62 @@ input[type="color"] {
   font-family: 'Courier Prime', monospace; font-size: 10px; font-weight: 400;
   color: var(--ink-faint); letter-spacing: 0.06em; text-transform: uppercase;
 }
+
+/* ─── Share modal ─── */
+.share-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 200;
+  align-items: flex-end; justify-content: center;
+}
+.share-overlay.open { display: flex; }
+.share-sheet {
+  background: var(--card); border-radius: 20px 20px 0 0;
+  width: 100%; max-width: 600px;
+  padding: 0 0 max(env(safe-area-inset-bottom), 20px);
+  box-shadow: 0 -4px 32px rgba(0,0,0,0.15);
+  max-height: 80dvh; display: flex; flex-direction: column;
+}
+.share-sheet-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 14px; border-bottom: 1.5px solid var(--border);
+  flex-shrink: 0;
+}
+.share-sheet-title {
+  font-family: 'Courier Prime', monospace; font-size: 13px;
+  font-weight: 700; letter-spacing: 0.06em; color: var(--ink);
+  text-transform: uppercase;
+}
+.share-sheet-close {
+  background: var(--bg); border: none; border-radius: 50%;
+  width: 30px; height: 30px; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-light);
+}
+.share-sheet-body {
+  flex: 1; overflow-y: auto; padding: 16px 20px;
+}
+.share-preview {
+  font-family: 'Lato', sans-serif; font-size: 13px; line-height: 1.7;
+  color: var(--ink); white-space: pre-wrap; word-break: break-word;
+  background: var(--bg); border-radius: var(--radius);
+  padding: 14px 16px; border: 1.5px solid var(--border);
+  width: 100%; min-height: 220px; resize: vertical;
+  outline: none; -webkit-appearance: none;
+  transition: border-color 0.2s;
+}
+.share-preview:focus { border-color: var(--accent); }
+.share-actions {
+  display: flex; gap: 10px; padding: 14px 20px 0; flex-shrink: 0;
+}
+.share-btn {
+  flex: 1; padding: 14px; border: none; border-radius: var(--radius);
+  font-family: 'Lato', sans-serif; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.share-btn:active { opacity: 0.8; }
+.share-btn-email { background: var(--accent); color: #fff; }
+.share-btn-copy  { background: var(--bg); color: var(--ink); border: 1.5px solid var(--border); }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -463,7 +519,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v1.5</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v1.9</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -574,6 +630,7 @@ input[type="color"] {
         </select>
         <span class="person-select-arrow">▼</span>
       </div>
+      <button class="topbar-btn" onclick="shareTodos()" title="Share">✉️</button>
       <button class="topbar-btn" onclick="pasteMeetings()" title="Paste data">📋</button>
       <button class="topbar-btn" onclick="openSettings()" title="Settings">⚙</button>
     </div>
@@ -796,8 +853,13 @@ async function pasteMeetings() {
     todosLoaded = added;
   }
 
-  if (meetingsLoaded === 0 && todosLoaded === 0) {
+  if (meetingsLoaded === 0 && todosLoaded === 0 && !(obj.people && obj.people.length)) {
     toast('Nothing loaded — check meetings and todos keys', 'error'); return;
+  }
+  // Always refresh todo screen if visible
+  if (document.getElementById('todoScreen').classList.contains('active')) {
+    renderTodos();
+    updateTodoBadge();
   }
   const parts = [];
   if (meetingsLoaded) parts.push(meetingsLoaded + ' meeting' + (meetingsLoaded !== 1 ? 's' : ''));
@@ -1007,7 +1069,8 @@ async function sendNote() {
       localStorage.removeItem(DRAFT_KEY);
       showDraftIndicator('—', false);
       selectedTypes.clear();
-      document.querySelectorAll('.action-type').forEach(el => el.classList.remove('selected'));
+      selectedTypes.add(4); // re-default to Delegate
+      renderActionTypes();
     } else { throw new Error(res.status); }
   } catch { toast('Send failed — check webhook', 'error'); }
   finally { btn.disabled = false; label.style.display = 'inline'; spinner.style.display = 'none'; }
@@ -1219,26 +1282,32 @@ function moveTodo(id, newCat) {
   if (t) { t.cat = newCat; saveTodos(); renderTodos(); }
 }
 
+const _myTodoInFlight = new Set();
 async function completeTodo(id) {
+  if (_myTodoInFlight.has(id)) return;
+  _myTodoInFlight.add(id);
   const todo = todos.find(function(t) { return t.id === id; });
-  if (!todo) return;
+  if (!todo) { _myTodoInFlight.delete(id); return; }
   const cfg = loadCfg();
-  if (!cfg.webhook) { toast('No webhook configured', 'error'); return; }
-  // Animate
+  if (!cfg.webhook) { _myTodoInFlight.delete(id); toast('No webhook configured', 'error'); return; }
+  // Show sending state on the row
   const el = document.getElementById('todo-' + id);
-  if (el) el.style.opacity = '0.4';
+  const checkEl = el ? el.querySelector('.todo-row-check') : null;
+  if (el) el.style.opacity = '0.6';
+  if (checkEl) checkEl.innerHTML = '<span style="font-size:12px;animation:spin 0.8s linear infinite;display:inline-block">⏳</span>';
   const msg = '✅ Done: ' + todo.text + (todo.meeting ? '\n🗓️ ' + todo.meeting : '');
   let ok = false;
   try {
     const res = await fetch(cfg.webhook, { method: 'POST', body: JSON.stringify({ message: msg }) });
     ok = res.ok;
   } catch(e) { ok = false; }
+  _myTodoInFlight.delete(id);
   if (!ok) {
     if (el) el.style.opacity = '';
+    if (checkEl) checkEl.innerHTML = '';
     toast('Send failed — task kept', 'error');
     return;
   }
-  // Slack confirmed — now remove
   if (el) { el.classList.add('completing'); await new Promise(function(r) { setTimeout(r, 260); }); }
   todos = todos.filter(function(t) { return t.id !== id; });
   saveTodos();
@@ -1322,7 +1391,9 @@ async function completePersonTask(personName, bucket, taskText) {
   if (!cfg.webhook) { _inFlight.delete(key); toast('No webhook configured', 'error'); return; }
   const safeId = (personName + '-' + bucket + '-' + taskText.slice(0, 20)).replace(/[^a-zA-Z0-9-_]/g, '_');
   const el = document.getElementById('ptask-' + safeId);
-  if (el) el.style.opacity = '0.4';
+  const checkEl = el ? el.querySelector('.todo-row-check') : null;
+  if (el) el.style.opacity = '0.5';
+  if (checkEl) checkEl.innerHTML = '<span style="font-size:12px;animation:spin 0.8s linear infinite;display:inline-block">⏳</span>';
   const msg = '✅ Done (' + personName + ' · ' + bucket + '): ' + taskText;
   let ok = false;
   try {
@@ -1332,6 +1403,7 @@ async function completePersonTask(personName, bucket, taskText) {
   _inFlight.delete(key);
   if (!ok) {
     if (el) el.style.opacity = '';
+    if (checkEl) checkEl.innerHTML = '';
     toast('Send failed — task kept', 'error'); return;
   }
   const p = people.find(function(p) { return p.person === personName; });
@@ -1341,6 +1413,107 @@ async function completePersonTask(personName, bucket, taskText) {
   savePeople(people);
   renderTodos();
   toast('Done & sent to Slack ✓', 'success');
+}
+
+function shareTodos() {
+  let subject, bodyHtml, bodyText;
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  if (selectedPerson) {
+    // ── Person view ──
+    const p = people.find(function(p) { return p.person === selectedPerson; });
+    if (!p || !p.buckets) { toast('Nothing to share', 'error'); return; }
+    subject = 'Tasks for ' + selectedPerson + ' — ' + today;
+    bodyHtml = '<h2>Tasks for ' + selectedPerson + '</h2>';
+    if (p.date) {
+      const d = new Date(p.date + 'T00:00:00');
+      bodyHtml += '<p><em>Last updated ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '</em></p>';
+    }
+    bodyText = 'Tasks for ' + selectedPerson + '\n';
+    if (p.date) bodyText += 'Last updated ' + p.date + '\n';
+    bodyText += '\n';
+    Object.keys(p.buckets).forEach(function(bucket) {
+      const bData = p.buckets[bucket];
+      if (!bData || !bData.todos || bData.todos.length === 0) return;
+      const label = bucket.charAt(0).toUpperCase() + bucket.slice(1);
+      bodyHtml += '<h3>' + label + '</h3>';
+      if (bData.summary) bodyHtml += '<p><em>' + escapeHtml(bData.summary) + '</em></p>';
+      bodyHtml += '<ul>';
+      bData.todos.forEach(function(t) { bodyHtml += '<li>' + escapeHtml(t) + '</li>'; });
+      bodyHtml += '</ul>';
+      bodyText += label + ':\n';
+      if (bData.summary) bodyText += '  ' + bData.summary + '\n';
+      bData.todos.forEach(function(t) { bodyText += '  • ' + t + '\n'; });
+      bodyText += '\n';
+    });
+  } else {
+    // ── My Tasks view ──
+    if (todos.length === 0) { toast('Nothing to share', 'error'); return; }
+    subject = 'My Tasks — ' + today;
+    bodyHtml = '<h2>My Tasks</h2>';
+    bodyText = 'My Tasks\n\n';
+    const catIds = [];
+    todos.forEach(function(t) { if (catIds.indexOf(t.cat) === -1) catIds.push(t.cat); });
+    catIds.sort(function(a, b) { return getCatOrder(a) - getCatOrder(b) || a.localeCompare(b); });
+    catIds.forEach(function(catId) {
+      const items = todos.filter(function(t) { return t.cat === catId; });
+      if (items.length === 0) return;
+      const col = getCatColors(catId);
+      const label = col.label.replace(/[^ ]+ /, ''); // strip emoji
+      bodyHtml += '<h3 style="color:' + col.hd + '">' + col.label + '</h3><ul>';
+      items.forEach(function(t) {
+        bodyHtml += '<li>' + escapeHtml(t.text);
+        if (t.meeting) bodyHtml += ' <span style="color:#888;font-size:0.85em">— ' + escapeHtml(t.meeting) + '</span>';
+        bodyHtml += '</li>';
+      });
+      bodyHtml += '</ul>';
+      bodyText += col.label + ':\n';
+      items.forEach(function(t) {
+        bodyText += '  • ' + t.text + (t.meeting ? ' (' + t.meeting + ')' : '') + '\n';
+      });
+      bodyText += '\n';
+    });
+  }
+
+  // Wrap HTML in a clean email body
+  const fullHtml = '<html><body style="font-family:sans-serif;max-width:600px;padding:20px">'
+    + bodyHtml
+    + '<hr><p style="color:#aaa;font-size:11px">Sent from Slack Notes</p></body></html>';
+
+  // Store for modal
+  window._shareSubject = subject;
+  window._shareText = bodyText.trim();
+
+  // Show modal with preview
+  document.getElementById('sharePreview').value = bodyText.trim();
+  document.getElementById('shareOverlay').classList.add('open');
+}
+
+function closeShareModal(e) {
+  if (e && e.target !== document.getElementById('shareOverlay')) return;
+  document.getElementById('shareOverlay').classList.remove('open');
+}
+
+function openMailto() {
+  const text = document.getElementById('sharePreview').value || window._shareText || '';
+  const mailto = 'mailto:?subject=' + encodeURIComponent(window._shareSubject || '')
+    + '&body=' + encodeURIComponent(text);
+  const w = window.open(mailto, '_blank');
+  if (!w) window.location.href = mailto;
+}
+
+function copyShareContent() {
+  const text = document.getElementById('sharePreview').value || window._shareText || '';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      toast('Copied to clipboard ✓', 'success');
+      document.getElementById('shareOverlay').classList.remove('open');
+    }).catch(function() {
+      toast('Copy failed — try selecting the text manually', 'error');
+    });
+  } else {
+    toast('Clipboard not available on this browser', 'error');
+  }
 }
 
 function switchTab(tab) {
@@ -1391,5 +1564,22 @@ function switchTab(tab) {
 
 init();
 </script>
+
+<!-- Share modal -->
+<div class="share-overlay" id="shareOverlay" onclick="closeShareModal(event)">
+  <div class="share-sheet" onclick="event.stopPropagation()">
+    <div class="share-sheet-header">
+      <span class="share-sheet-title">Share Tasks</span>
+      <button class="share-sheet-close" onclick="closeShareModal()">✕</button>
+    </div>
+    <div class="share-sheet-body">
+      <textarea class="share-preview" id="sharePreview" spellcheck="false"></textarea>
+    </div>
+    <div class="share-actions">
+      <button class="share-btn share-btn-copy" onclick="copyShareContent()">📋 Copy</button>
+      <button class="share-btn share-btn-email" onclick="openMailto()">✉️ Open in Mail</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
