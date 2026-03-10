@@ -419,6 +419,38 @@ input[type="color"] {
 
 /* Completing animation */
 .todo-row.completing { opacity: 0; transform: translateX(48px); }
+
+/* ─── Person selector ─── */
+.person-select-wrap {
+  flex: 1; position: relative; display: flex; align-items: center;
+}
+.person-select {
+  width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 20px; padding: 7px 30px 7px 14px;
+  font-family: 'Lato', sans-serif; font-size: 13px; font-weight: 700;
+  color: var(--accent); cursor: pointer; appearance: none;
+  -webkit-appearance: none; outline: none; transition: border-color 0.2s;
+}
+.person-select:focus { border-color: var(--accent); }
+.person-select-arrow {
+  position: absolute; right: 11px; pointer-events: none;
+  font-size: 10px; color: var(--accent);
+}
+
+/* ─── Bucket summary ─── */
+.todo-cat-summary {
+  font-family: 'Lato', sans-serif; font-size: 12px;
+  font-weight: 400; font-style: italic;
+  color: rgba(255,255,255,0.82); margin-top: 2px;
+  text-transform: none; letter-spacing: 0;
+}
+.todo-cat-header-inner { display: flex; flex-direction: column; gap: 1px; }
+
+/* ─── Person date label ─── */
+.person-date-label {
+  font-family: 'Courier Prime', monospace; font-size: 10px;
+  color: var(--ink-faint); letter-spacing: 0.05em; padding: 10px 20px 0;
+}
 </style>
 </head>
 <body>
@@ -531,7 +563,13 @@ input[type="color"] {
       </button>
     </div>
     <div class="topbar-actions">
-      <span class="todo-header-count" id="todoCount"></span>
+      <div class="person-select-wrap">
+        <select class="person-select" id="personSelect" onchange="onPersonChange()">
+          <option value="">My Tasks</option>
+        </select>
+        <span class="person-select-arrow">▼</span>
+      </div>
+      <button class="topbar-btn" onclick="pasteMeetings()" title="Paste data">📋</button>
       <button class="topbar-btn" onclick="openSettings()" title="Settings">⚙</button>
     </div>
   </div>
@@ -631,6 +669,8 @@ function init() {
   // Apply saved theme
   applyTheme(cfg.theme || '#2d6a4f');
   loadTodos();
+  loadPeople();
+  populatePersonSelect();
   updateTodoBadge();
   if (cfg.webhook && cfg.channel) {
     showMain(cfg);
@@ -727,6 +767,12 @@ async function pasteMeetings() {
     meetingsLoaded = meetings.length;
   }
 
+  // people key
+  if (Array.isArray(obj.people) && obj.people.length > 0) {
+    savePeople(obj.people);
+    populatePersonSelect();
+  }
+
   // todos key
   if (obj.todos && typeof obj.todos === 'object' && !Array.isArray(obj.todos)) {
     todos = [];
@@ -749,8 +795,9 @@ async function pasteMeetings() {
     toast('Nothing loaded — check meetings and todos keys', 'error'); return;
   }
   const parts = [];
-  if (meetingsLoaded) parts.push(meetingsLoaded + ' meetings');
-  if (todosLoaded) parts.push(todosLoaded + ' tasks');
+  if (meetingsLoaded) parts.push(meetingsLoaded + ' meeting' + (meetingsLoaded !== 1 ? 's' : ''));
+  if (todosLoaded) parts.push(todosLoaded + ' task' + (todosLoaded !== 1 ? 's' : ''));
+  if (obj.people && obj.people.length) parts.push(obj.people.length + ' person' + (obj.people.length !== 1 ? 's' : ''));
   toast(parts.join(' & ') + ' loaded ✓', 'success');
 }
 
@@ -1064,10 +1111,61 @@ function renderTodos() {
   const scroll = document.getElementById('todoScroll');
   const empty  = document.getElementById('todoEmpty');
   if (!scroll) return;
-  scroll.querySelectorAll('.todo-category').forEach(function(el) { el.remove(); });
-  if (todos.length === 0) { empty.style.display = 'flex'; updateTodoBadge(); return; }
+  scroll.querySelectorAll('.todo-category, .person-date-label').forEach(function(el) { el.remove(); });
+
+  // ── Person view ──
+  if (selectedPerson) {
+    const p = people.find(function(p) { return p.person === selectedPerson; });
+    if (!p || !p.buckets) { empty.style.display = 'flex'; return; }
+    const bucketKeys = Object.keys(p.buckets);
+    const hasTasks = bucketKeys.some(function(b) { return p.buckets[b].todos && p.buckets[b].todos.length > 0; });
+    if (!hasTasks) { empty.style.display = 'flex'; empty.querySelector('.todo-empty-text').textContent = 'No tasks for ' + selectedPerson; return; }
+    empty.style.display = 'none';
+    // Date label
+    if (p.date) {
+      const lbl = document.createElement('div');
+      lbl.className = 'person-date-label';
+      const d = new Date(p.date + 'T00:00:00');
+      lbl.textContent = 'Last updated ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      scroll.appendChild(lbl);
+    }
+    bucketKeys.forEach(function(bucket) {
+      const bData = p.buckets[bucket];
+      if (!bData || !bData.todos || bData.todos.length === 0) return;
+      const col = getBucketColor(bucket);
+      const section = document.createElement('div');
+      section.className = 'todo-category';
+      section.style.setProperty('--cat-hd', col.hd);
+      section.style.setProperty('--cat-bg', col.bg);
+      section.style.setProperty('--cat-stripe', col.stripe);
+      const hdr = document.createElement('div');
+      hdr.className = 'todo-cat-header';
+      const bucketLabel = bucket.charAt(0).toUpperCase() + bucket.slice(1);
+      const summaryHtml = bData.summary ? '<div class="todo-cat-summary">' + escapeHtml(bData.summary) + '</div>' : '';
+      hdr.innerHTML = '<div class="todo-cat-header-inner"><span>' + bucketLabel + '</span>' + summaryHtml + '</div>'
+        + '<span class="cat-count">' + bData.todos.length + ' task' + (bData.todos.length !== 1 ? 's' : '') + '</span>';
+      section.appendChild(hdr);
+      bData.todos.forEach(function(taskText, idx) {
+        const row = document.createElement('div');
+        row.className = 'todo-row' + (idx % 2 === 1 ? ' alt' : '');
+        const safeId = (selectedPerson + '-' + bucket + '-' + taskText.slice(0, 20)).replace(/[^a-zA-Z0-9-_]/g, '_');
+        row.id = 'ptask-' + safeId;
+        row.innerHTML = '<div class="todo-row-check"></div>'
+          + '<div class="todo-row-body"><div class="todo-row-text">' + escapeHtml(taskText) + '</div></div>';
+        row.querySelector('.todo-row-check').addEventListener('click', function(e) {
+          e.stopPropagation();
+          completePersonTask(selectedPerson, bucket, taskText);
+        });
+        section.appendChild(row);
+      });
+      scroll.appendChild(section);
+    });
+    return;
+  }
+
+  // ── My Tasks view ──
+  if (todos.length === 0) { empty.style.display = 'flex'; empty.querySelector('.todo-empty-text').innerHTML = 'Nothing to do!<br>Send a note tagged ✅ My ToDo<br>and it will appear here.'; return; }
   empty.style.display = 'none';
-  // Discover all unique categories in current todos, sorted fixed-first then alpha
   const catIds = [];
   todos.forEach(function(t) { if (catIds.indexOf(t.cat) === -1) catIds.push(t.cat); });
   catIds.sort(function(a, b) { return getCatOrder(a) - getCatOrder(b) || a.localeCompare(b); });
@@ -1139,6 +1237,100 @@ async function completeTodo(id) {
   if (el) { el.classList.add('completing'); await new Promise(function(r) { setTimeout(r, 260); }); }
   todos = todos.filter(function(t) { return t.id !== id; });
   saveTodos();
+  renderTodos();
+  toast('Done & sent to Slack ✓', 'success');
+}
+
+// ── People ───────────────────────────────────────
+const PEOPLE_KEY = 'slacknotes_people';
+let people = [];
+let selectedPerson = null; // null = My Tasks
+
+function loadPeople() {
+  try { people = JSON.parse(localStorage.getItem(PEOPLE_KEY)) || []; }
+  catch { people = []; }
+}
+function savePeople(data) {
+  people = data;
+  localStorage.setItem(PEOPLE_KEY, JSON.stringify(people));
+}
+function populatePersonSelect() {
+  const sel = document.getElementById('personSelect');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">My Tasks</option>';
+  const sorted = people.slice().sort(function(a, b) { return a.person.localeCompare(b.person); });
+  sorted.forEach(function(p) {
+    const opt = document.createElement('option');
+    opt.value = p.person;
+    opt.textContent = p.person;
+    sel.appendChild(opt);
+  });
+  // Restore selection if still valid
+  if (cur && people.find(function(p) { return p.person === cur; })) {
+    sel.value = cur;
+  } else {
+    sel.value = '';
+    selectedPerson = null;
+  }
+}
+function onPersonChange() {
+  const sel = document.getElementById('personSelect');
+  selectedPerson = sel.value || null;
+  renderTodos();
+}
+function renderPersonDate() {
+  const scroll = document.getElementById('todoScroll');
+  if (!scroll) return;
+  scroll.querySelectorAll('.person-date-label').forEach(function(el) { el.remove(); });
+  if (!selectedPerson) return;
+  const p = people.find(function(p) { return p.person === selectedPerson; });
+  if (!p || !p.date) return;
+  const lbl = document.createElement('div');
+  lbl.className = 'person-date-label';
+  const d = new Date(p.date + 'T00:00:00');
+  lbl.textContent = 'Last updated ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  scroll.insertBefore(lbl, scroll.firstChild);
+}
+
+// Bucket palette — distinct from todo categories
+const BUCKET_PALETTE = [
+  { hd: '#5b4fcf', bg: '#f0eeff', stripe: '#e8e4fc' },
+  { hd: '#0d7377', bg: '#e0f4f1', stripe: '#d0eeea' },
+  { hd: '#b5560a', bg: '#fdf0e4', stripe: '#fae8d4' },
+  { hd: '#1a6b3a', bg: '#e4f4ec', stripe: '#d4eee0' },
+  { hd: '#8e3a59', bg: '#fceef4', stripe: '#f8e2ec' },
+  { hd: '#2c5f8a', bg: '#e4eff8', stripe: '#d4e6f4' },
+];
+function getBucketColor(bucketName) {
+  let hash = 0;
+  for (let i = 0; i < bucketName.length; i++) hash = (hash * 31 + bucketName.charCodeAt(i)) & 0xffffffff;
+  return BUCKET_PALETTE[Math.abs(hash) % BUCKET_PALETTE.length];
+}
+
+async function completePersonTask(personName, bucket, taskText) {
+  const cfg = loadCfg();
+  if (!cfg.webhook) { toast('No webhook configured', 'error'); return; }
+  // Find the element to animate
+  const elId = 'ptask-' + CSS.escape(personName + '-' + bucket + '-' + taskText.slice(0, 20));
+  const el = document.getElementById(elId);
+  if (el) el.style.opacity = '0.4';
+  const msg = '✅ Done (' + personName + ' · ' + bucket + '): ' + taskText;
+  let ok = false;
+  try {
+    const res = await fetch(cfg.webhook, { method: 'POST', body: JSON.stringify({ message: msg }) });
+    ok = res.ok;
+  } catch(e) { ok = false; }
+  if (!ok) {
+    if (el) el.style.opacity = '';
+    toast('Send failed — task kept', 'error'); return;
+  }
+  // Remove task from people data
+  const p = people.find(function(p) { return p.person === personName; });
+  if (p && p.buckets && p.buckets[bucket]) {
+    p.buckets[bucket].todos = p.buckets[bucket].todos.filter(function(t) { return t !== taskText; });
+  }
+  savePeople(people);
   renderTodos();
   toast('Done & sent to Slack ✓', 'success');
 }
