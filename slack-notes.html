@@ -512,6 +512,31 @@ input[type="color"] {
 .share-btn-email { background: var(--accent); color: #fff; }
 .share-btn-copy  { background: var(--bg); color: var(--ink); border: 1.5px solid var(--border); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ─── Keyboard shortcuts settings ─── */
+.shortcuts-grid {
+  display: flex; flex-direction: column; gap: 6px; margin-top: 4px;
+}
+.shortcut-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.shortcut-label {
+  flex: 1; font-size: 13px; color: var(--ink-light);
+}
+.shortcut-input {
+  width: 130px; background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; font-family: 'Courier Prime', monospace;
+  font-size: 12px; color: var(--ink); text-align: center; outline: none;
+  transition: border-color 0.2s; cursor: pointer; caret-color: transparent;
+}
+.shortcut-input:focus { border-color: var(--accent); background: var(--card); }
+.shortcut-input.recording { border-color: #c0392b; background: #fdecea; color: #c0392b; }
+.shortcut-reset {
+  background: none; border: none; color: var(--ink-faint); font-size: 12px;
+  cursor: pointer; padding: 4px; border-radius: 4px;
+  font-family: 'Courier Prime', monospace; letter-spacing: 0.03em;
+}
+.shortcut-reset:hover { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -519,7 +544,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.0</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.1</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -544,7 +569,12 @@ input[type="color"] {
         <input type="color" id="customColorPicker" value="#2d6a4f" oninput="onCustomColor(this.value)">
       </div>
     </div>
-    <button class="btn-primary" onclick="saveSetup()">Save & Open →</button>
+    <div class="field">
+      <div class="field-label">Keyboard shortcuts</div>
+      <div class="shortcuts-grid" id="shortcutsGrid"></div>
+      <p class="field-hint" style="margin-top:8px">Click a shortcut to re-record. Press the new key combo, then Enter to confirm. <a href="#" onclick="resetAllShortcuts();return false;">Reset all to defaults</a></p>
+    </div>
+        <button class="btn-primary" onclick="saveSetup()">Save & Open →</button>
     <button class="btn-secondary" id="backBtn" onclick="goBack()" style="display:none">← Back</button>
   </div>
 </div>
@@ -734,6 +764,7 @@ function init() {
   loadPeople();
   populatePersonSelect();
   updateTodoBadge();
+  loadShortcuts();
   if (cfg.webhook && cfg.channel) {
     showMain(cfg);
   } else {
@@ -771,6 +802,8 @@ function showMain(cfg) {
   ['tabNotes','tabNotes2'].forEach(function(id) { const el=document.getElementById(id); if(el) el.classList.toggle('active', _lastTab === 'notes'); });
   ['tabTodo','tabTodo2'].forEach(function(id) { const el=document.getElementById(id); if(el) el.classList.toggle('active', _lastTab === 'todo'); });
   if (_lastTab === 'todo') renderTodos();
+  // Auto-focus note textarea when on notes tab
+  if (_lastTab === 'notes') setTimeout(function() { var t = document.getElementById('noteText'); if(t) t.focus(); }, 80);
 }
 function openSettings() {
   // Remember current tab before leaving
@@ -783,6 +816,7 @@ function openSettings() {
   showScreen('setupScreen');
   const currentTheme = loadCfg().theme || '#2d6a4f';
   renderSwatches(currentTheme);
+  renderShortcutsGrid();
 }
 function goBack() {
   const cfg = loadCfg(); if (cfg.webhook && cfg.channel) showMain(cfg);
@@ -1084,6 +1118,7 @@ async function sendNote() {
       selectedTypes.clear();
       selectedTypes.add(4); // re-default to Delegate
       renderActionTypes();
+      document.getElementById('noteText').focus();
     } else { throw new Error(res.status); }
   } catch { toast('Send failed — check webhook', 'error'); }
   finally { btn.disabled = false; label.style.display = 'inline'; spinner.style.display = 'none'; }
@@ -1573,6 +1608,176 @@ function switchTab(tab) {
   document.addEventListener('touchstart', onTouchStart, { passive: true });
   document.addEventListener('touchend',   onTouchEnd,   { passive: true });
 })();
+
+// ── Keyboard Shortcuts ────────────────────────────
+const SHORTCUTS_KEY = 'slacknotes_shortcuts';
+
+const DEFAULT_SHORTCUTS = {
+  focusNote:    { label: 'Focus note',       default: 'Ctrl+Space'   },
+  sendNote:     { label: 'Send note',         default: 'Ctrl+Enter'  },
+  tabNotes:     { label: 'Go to Notes tab',   default: 'Ctrl+1'      },
+  tabTodo:      { label: 'Go to To Do tab',   default: 'Ctrl+2'      },
+  toggleMic:    { label: 'Toggle mic',        default: 'Ctrl+M'      },
+  pasteData:    { label: 'Paste data',        default: 'Ctrl+Shift+V'},
+  typeNotes:    { label: 'Type: Notes',       default: 'Ctrl+Shift+N'},
+  typeTodo:     { label: 'Type: My ToDo',     default: 'Ctrl+Shift+T'},
+  typeIdeas:    { label: 'Type: Ideas',       default: 'Ctrl+Shift+I'},
+  typeManager:  { label: 'Type: Manager',     default: 'Ctrl+Shift+G'},
+  typeDelegate: { label: 'Type: Delegate',    default: 'Ctrl+Shift+D'},
+  typeGroup:    { label: 'Type: Group',       default: 'Ctrl+Shift+U'},
+};
+
+let shortcuts = {};
+
+function loadShortcuts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHORTCUTS_KEY)) || {};
+    shortcuts = {};
+    Object.keys(DEFAULT_SHORTCUTS).forEach(function(k) {
+      shortcuts[k] = saved[k] || DEFAULT_SHORTCUTS[k].default;
+    });
+  } catch(e) {
+    shortcuts = {};
+    Object.keys(DEFAULT_SHORTCUTS).forEach(function(k) { shortcuts[k] = DEFAULT_SHORTCUTS[k].default; });
+  }
+}
+function saveShortcuts() {
+  localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts));
+}
+function resetAllShortcuts() {
+  Object.keys(DEFAULT_SHORTCUTS).forEach(function(k) { shortcuts[k] = DEFAULT_SHORTCUTS[k].default; });
+  saveShortcuts();
+  renderShortcutsGrid();
+  toast('Shortcuts reset to defaults', 'success');
+}
+
+function keyEventToString(e) {
+  const parts = [];
+  if (e.ctrlKey)  parts.push('Ctrl');
+  if (e.altKey)   parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  const key = e.key;
+  // Ignore modifier-only presses
+  if (['Control','Alt','Shift','Meta'].includes(key)) return null;
+  // Normalise
+  if (key === ' ') parts.push('Space');
+  else if (key === 'Enter') parts.push('Enter');
+  else parts.push(key.length === 1 ? key.toUpperCase() : key);
+  return parts.join('+');
+}
+
+function renderShortcutsGrid() {
+  const grid = document.getElementById('shortcutsGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  Object.keys(DEFAULT_SHORTCUTS).forEach(function(k) {
+    const row = document.createElement('div');
+    row.className = 'shortcut-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'shortcut-label';
+    lbl.textContent = DEFAULT_SHORTCUTS[k].label;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'shortcut-input';
+    inp.value = shortcuts[k];
+    inp.readOnly = true;
+    inp.dataset.key = k;
+    inp.addEventListener('focus', function() {
+      inp.classList.add('recording');
+      inp.value = 'Press keys…';
+    });
+    inp.addEventListener('blur', function() {
+      inp.classList.remove('recording');
+      inp.value = shortcuts[k];
+    });
+    inp.addEventListener('keydown', function(e) {
+      e.preventDefault();
+      if (e.key === 'Escape') { inp.blur(); return; }
+      if (e.key === 'Enter') { inp.blur(); return; }
+      const combo = keyEventToString(e);
+      if (!combo) return;
+      shortcuts[k] = combo;
+      inp.value = combo;
+      saveShortcuts();
+      inp.blur();
+    });
+    const reset = document.createElement('button');
+    reset.className = 'shortcut-reset';
+    reset.textContent = 'reset';
+    reset.type = 'button';
+    reset.addEventListener('click', function() {
+      shortcuts[k] = DEFAULT_SHORTCUTS[k].default;
+      inp.value = shortcuts[k];
+      saveShortcuts();
+    });
+    row.appendChild(lbl);
+    row.appendChild(inp);
+    row.appendChild(reset);
+    grid.appendChild(row);
+  });
+}
+
+// ── Global keyboard handler ───────────────────────
+document.addEventListener('keydown', function(e) {
+  // Don't fire shortcuts when typing in a shortcut-input field
+  if (e.target.classList.contains('shortcut-input')) return;
+  const combo = keyEventToString(e);
+  if (!combo) return;
+
+  // Map type buttons: Notes(0), MyTodo(1), Ideas(2), Manager(3), Delegate(4), Group(5)
+  const typeMap = {
+    typeNotes:    0,
+    typeTodo:     1,
+    typeIdeas:    2,
+    typeManager:  3,
+    typeDelegate: 4,
+    typeGroup:    5,
+  };
+
+  let handled = false;
+  Object.keys(shortcuts).forEach(function(k) {
+    if (shortcuts[k] !== combo) return;
+    handled = true;
+    switch(k) {
+      case 'focusNote':
+        switchTab('notes');
+        setTimeout(function() { document.getElementById('noteText').focus(); }, 50);
+        break;
+      case 'sendNote':
+        if (document.getElementById('mainScreen').classList.contains('active')) sendNote();
+        break;
+      case 'tabNotes':
+        switchTab('notes');
+        setTimeout(function() { document.getElementById('noteText').focus(); }, 50);
+        break;
+      case 'tabTodo':
+        switchTab('todo');
+        break;
+      case 'toggleMic':
+        if (document.getElementById('mainScreen').classList.contains('active')) toggleSpeech();
+        break;
+      case 'pasteData':
+        pasteMeetings();
+        break;
+      default:
+        if (typeMap[k] !== undefined) {
+          if (document.getElementById('mainScreen').classList.contains('active')) {
+            toggleType(typeMap[k]);
+          }
+        }
+    }
+  });
+  if (handled) e.preventDefault();
+});
+
+function toggleType(idx) {
+  if (selectedTypes.has(idx)) {
+    selectedTypes.delete(idx);
+  } else {
+    selectedTypes.add(idx);
+  }
+  renderActionTypes();
+}
 
 
 init();
