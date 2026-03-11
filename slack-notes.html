@@ -519,7 +519,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v1.9</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.0</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -753,15 +753,28 @@ function init() {
 }
 
 // ── Screens ───────────────────────────────────────
+let _lastTab = 'notes'; // remember which tab was active before settings
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 function showMain(cfg) {
   document.getElementById('channelDisplay').textContent = cfg.channel.replace(/^#/, '');
-  showScreen('mainScreen');
+  // Restore to whichever tab was active before going to settings
+  if (_lastTab === 'todo') {
+    showScreen('todoScreen');
+  } else {
+    showScreen('mainScreen');
+  }
+  // Sync tab header buttons to match
+  ['tabNotes','tabNotes2'].forEach(function(id) { const el=document.getElementById(id); if(el) el.classList.toggle('active', _lastTab === 'notes'); });
+  ['tabTodo','tabTodo2'].forEach(function(id) { const el=document.getElementById(id); if(el) el.classList.toggle('active', _lastTab === 'todo'); });
+  if (_lastTab === 'todo') renderTodos();
 }
 function openSettings() {
+  // Remember current tab before leaving
+  _lastTab = document.getElementById('todoScreen').classList.contains('active') ? 'todo' : 'notes';
   const cfg = loadCfg();
   document.getElementById('webhookInput').value = cfg.webhook || '';
   document.getElementById('channelInput').value = cfg.channel ? '#' + cfg.channel.replace(/^#/, '') : '';
