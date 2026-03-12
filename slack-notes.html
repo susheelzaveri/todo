@@ -589,6 +589,7 @@ input[type="color"] {
   flex-shrink: 0; transition: background 0.15s;
 }
 .discuss-insert-btn:active { background: var(--accent); color: #fff; }
+.discuss-point-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .discuss-done-btn { background: rgba(26,122,74,0.1); border-color: #1a7a4a; color: #1a7a4a; }
 .discuss-done-btn:active { background: #1a7a4a; color: #fff; }
 .discuss-agenda-tag {
@@ -669,7 +670,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.3</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.4</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -1997,14 +1998,21 @@ function updateDiscussPanel() {
     body.appendChild(row);
   });
 
-  // Discussion points
+  // Discussion points (from JSON — two actions: silent done, or insert into note)
   points.forEach(function(pt) {
+    const meetingTitleForPt = title;
     const row = document.createElement('div');
     row.className = 'discuss-point';
     row.innerHTML = '<span class="discuss-point-text">' + escapeHtml(pt) + '</span>'
-      + '<button class="discuss-insert-btn" title="Insert into note">\u2193 Insert</button>';
-    row.querySelector('.discuss-insert-btn').addEventListener('click', function() {
+      + '<div class="discuss-point-actions">'
+      + '<button class="discuss-insert-btn discuss-note-btn" title="Move to note">\u2193 Note</button>'
+      + '<button class="discuss-insert-btn discuss-done-btn" title="Mark done">\u2713 Done</button>'
+      + '</div>';
+    row.querySelector('.discuss-note-btn').addEventListener('click', function() {
       insertIntoNote(pt);
+    });
+    row.querySelector('.discuss-done-btn').addEventListener('click', function() {
+      dismissDiscussPoint(pt, meetingTitleForPt);
     });
     body.appendChild(row);
   });
@@ -2104,6 +2112,13 @@ async function completeAgendaItem(text, meetingTitle) {
   }
   updateDiscussPanel();
   toast('Done & sent to Slack ✓', 'success');
+}
+
+function dismissDiscussPoint(text, meetingTitle) {
+  if (!discussData[meetingTitle]) return;
+  discussData[meetingTitle].points = (discussData[meetingTitle].points || []).filter(function(p) { return p !== text; });
+  saveDiscussLocal();
+  updateDiscussPanel();
 }
 
 // ── Long press handler ────────────────────────────
