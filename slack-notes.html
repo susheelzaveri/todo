@@ -670,7 +670,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.4</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.5</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -826,12 +826,97 @@ const ACTION_TYPES = [
 ];
 
 const STORAGE_KEY = 'slacknotes_v4';
-const DRAFT_KEY   = 'slacknotes_draft';
+const NOTE_PREFIX = 'slacknotes_note:';
+const NOTE_UNLINKED = 'slacknotes_note:unlinked';
+const NOTE_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 let selectedTypes = new Set();
 let meetings = [];
 let autoSaveTimer = null;
 
 // ── Storage ───────────────────────────────────────
+
+function noteKey(meetingTitle, dateStr) {
+  // meetingTitle + date → meeting-scoped key (expires in 3 days)
+  // no args → unlinked key (persists until sent)
+  if (meetingTitle && dateStr) {
+    const safe = meetingTitle.replace(/[^a-zA-Z0-9 _-]/g, '').trim().slice(0, 60);
+    return NOTE_PREFIX + safe + ':' + dateStr;
+  }
+  return NOTE_UNLINKED;
+}
+
+function currentNoteKey() {
+  const sel = document.getElementById('meetingSelect');
+  const checked = document.getElementById('meetingCheck') && document.getElementById('meetingCheck').checked;
+  if (sel && sel.value !== '' && checked) {
+    const m = meetings[parseInt(sel.value)];
+    if (m) {
+      const today = new Date().toISOString().slice(0, 10);
+      return noteKey(m.title, today);
+    }
+  }
+  return NOTE_UNLINKED;
+}
+
+function saveNote(text) {
+  const key = currentNoteKey();
+  if (key === NOTE_UNLINKED) {
+    localStorage.setItem(key, text);
+  } else {
+    // Store with timestamp for expiry
+    const payload = JSON.stringify({ text: text, saved: Date.now() });
+    localStorage.setItem(key, payload);
+  }
+}
+
+function loadNote() {
+  const key = currentNoteKey();
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  if (key === NOTE_UNLINKED) return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed.text || null;
+  } catch { return raw; }
+}
+
+function clearNote() {
+  localStorage.removeItem(currentNoteKey());
+}
+
+function sweepExpiredNotes() {
+  const now = Date.now();
+  const toDelete = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(NOTE_PREFIX) && k !== NOTE_UNLINKED) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(k));
+        if (parsed && parsed.saved && (now - parsed.saved) > NOTE_TTL_MS) {
+          toDelete.push(k);
+        }
+      } catch { /* skip malformed */ }
+    }
+  }
+  toDelete.forEach(function(k) { localStorage.removeItem(k); });
+  if (toDelete.length) console.log('[SlackNotes] Swept', toDelete.length, 'expired note(s)');
+}
+
+function restoreNoteForCurrentMeeting() {
+  const ta = document.getElementById('noteText');
+  if (!ta) return;
+  // Save current textarea to old key before switching (in case user was mid-type)
+  // Then load the note for the new key
+  const saved = loadNote();
+  if (saved) {
+    ta.value = saved;
+    showDraftIndicator('Draft restored', false);
+  } else {
+    ta.value = '';
+    showDraftIndicator('—', false);
+  }
+}
+
 // ── Theme ────────────────────────────────────────
 const THEMES = [
   { name: 'Forest Green',  color: '#2d6a4f' },
@@ -910,16 +995,14 @@ function init() {
     showScreen('setupScreen');
     renderSwatches(cfg.theme || '#2d6a4f');
   }
-  // Restore draft
-  const draft = localStorage.getItem(DRAFT_KEY);
-  if (draft) {
-    document.getElementById('noteText').value = draft;
-    showDraftIndicator('Draft restored', false);
-  }
+  // Sweep expired meeting notes
+  sweepExpiredNotes();
   if (cfg.meetings && Array.isArray(cfg.meetings) && cfg.meetings.length > 0) {
     meetings = cfg.meetings;
     populateMeetingSelect(meetings, true);
   }
+  // Restore note for current context (after meeting is selected)
+  restoreNoteForCurrentMeeting();
 }
 
 // ── Screens ───────────────────────────────────────
@@ -979,7 +1062,7 @@ function onNoteInput() {
   clearTimeout(autoSaveTimer);
   showDraftIndicator('Saving…', false);
   autoSaveTimer = setTimeout(() => {
-    localStorage.setItem(DRAFT_KEY, document.getElementById('noteText').value);
+    saveNote(document.getElementById('noteText').value);
     showDraftIndicator('Draft saved', true);
   }, 800);
 }
@@ -1123,10 +1206,13 @@ function onMeetingChange() {
   document.getElementById('meetingSelect').classList.toggle('has-value',
     document.getElementById('meetingSelect').value !== '');
   updateDiscussPanel();
+  restoreNoteForCurrentMeeting();
 }
 function onMeetingToggle() {
   const checked = document.getElementById('meetingCheck').checked;
   document.getElementById('meetingSelectWrap').classList.toggle('disabled', !checked);
+  updateDiscussPanel();
+  restoreNoteForCurrentMeeting();
 }
 
 // ── Action types ──────────────────────────────────
@@ -1260,7 +1346,7 @@ async function sendNote() {
       });
       if (addedToTodo) updateTodoBadge();
       document.getElementById('noteText').value = '';
-      localStorage.removeItem(DRAFT_KEY);
+      clearNote();
       showDraftIndicator('—', false);
       selectedTypes.clear();
       selectedTypes.add(4); // re-default to Delegate
@@ -1274,7 +1360,7 @@ async function sendNote() {
 function clearAll() {
   if (isListening) stopListening();
   document.getElementById('noteText').value = '';
-  localStorage.removeItem(DRAFT_KEY);
+  clearNote();
   showDraftIndicator('—', false);
   selectedTypes.clear();
   document.querySelectorAll('.action-type').forEach(el => el.classList.remove('selected'));
