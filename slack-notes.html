@@ -537,6 +537,131 @@ input[type="color"] {
   font-family: 'Courier Prime', monospace; letter-spacing: 0.03em;
 }
 .shortcut-reset:hover { color: var(--accent); }
+
+/* ─── Discussion points panel ─── */
+.discuss-panel {
+  display: none; flex-direction: column;
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  box-shadow: var(--shadow); margin-bottom: 2px;
+}
+.discuss-panel.visible { display: flex; }
+.discuss-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 16px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--accent-light);
+  border-bottom: 1.5px solid var(--border);
+}
+.discuss-header-left {
+  display: flex; align-items: center; gap: 8px;
+}
+.discuss-header-title {
+  font-family: 'Courier Prime', monospace; font-size: 11px;
+  font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent);
+}
+.discuss-header-count {
+  font-family: 'Courier Prime', monospace; font-size: 10px;
+  color: var(--ink-faint); letter-spacing: 0.04em;
+}
+.discuss-chevron {
+  font-size: 10px; color: var(--accent);
+  transition: transform 0.2s;
+}
+.discuss-panel.expanded .discuss-chevron { transform: rotate(180deg); }
+.discuss-body { display: none; flex-direction: column; }
+.discuss-panel.expanded .discuss-body { display: flex; }
+.discuss-point {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px; border-bottom: 1px solid rgba(0,0,0,0.05);
+  -webkit-tap-highlight-color: transparent;
+}
+.discuss-point:last-child { border-bottom: none; }
+.discuss-point-text {
+  flex: 1; font-size: 14px; line-height: 1.4; color: var(--ink);
+}
+.discuss-insert-btn {
+  background: var(--accent-light); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 4px 10px;
+  font-family: 'Courier Prime', monospace; font-size: 11px;
+  color: var(--accent); cursor: pointer; white-space: nowrap;
+  flex-shrink: 0; transition: background 0.15s;
+}
+.discuss-insert-btn:active { background: var(--accent); color: #fff; }
+.discuss-done-btn { background: rgba(26,122,74,0.1); border-color: #1a7a4a; color: #1a7a4a; }
+.discuss-done-btn:active { background: #1a7a4a; color: #fff; }
+.discuss-agenda-tag {
+  font-size: 10px; background: var(--accent); color: #fff;
+  border-radius: 4px; padding: 1px 6px;
+  font-family: 'Courier Prime', monospace; letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* ─── Long press feedback ─── */
+@keyframes longpress-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(var(--accent-rgb, 45,106,79), 0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(var(--accent-rgb, 45,106,79), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb, 45,106,79), 0); }
+}
+.todo-row.longpress-active {
+  animation: longpress-pulse 0.5s ease-out infinite;
+  opacity: 0.85;
+}
+
+/* ─── Meeting picker sheet ─── */
+.meeting-pick-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); z-index: 300;
+  align-items: flex-end; justify-content: center;
+}
+.meeting-pick-overlay.open { display: flex; }
+.meeting-pick-sheet {
+  background: var(--card); border-radius: 20px 20px 0 0;
+  width: 100%; max-width: 600px;
+  padding: 0 0 max(env(safe-area-inset-bottom), 20px);
+  box-shadow: 0 -4px 32px rgba(0,0,0,0.15);
+  max-height: 70dvh; display: flex; flex-direction: column;
+}
+.meeting-pick-header {
+  padding: 18px 20px 14px; border-bottom: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.meeting-pick-title {
+  font-family: 'Courier Prime', monospace; font-size: 13px;
+  font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+}
+.meeting-pick-task {
+  font-size: 12px; color: var(--ink-light); margin-top: 3px;
+  font-style: italic; max-width: 260px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.meeting-pick-close {
+  background: var(--bg); border: none; border-radius: 50%;
+  width: 30px; height: 30px; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; color: var(--ink-light);
+}
+.meeting-pick-list { flex: 1; overflow-y: auto; }
+.meeting-pick-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 15px 20px; border-bottom: 1px solid var(--border);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+}
+.meeting-pick-item:last-child { border-bottom: none; }
+.meeting-pick-item:active { background: var(--accent-light); }
+.meeting-pick-time {
+  font-family: 'Courier Prime', monospace; font-size: 11px;
+  color: var(--ink-faint); width: 55px; flex-shrink: 0; letter-spacing: 0.03em;
+}
+.meeting-pick-name {
+  flex: 1; font-size: 14px; color: var(--ink); line-height: 1.3;
+}
+.meeting-pick-empty {
+  padding: 40px 20px; text-align: center;
+  font-family: 'Courier Prime', monospace; font-size: 13px;
+  color: var(--ink-faint); letter-spacing: 0.04em;
+}
 </style>
 </head>
 <body>
@@ -544,7 +669,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.1</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.3</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -613,6 +738,18 @@ input[type="color"] {
         </select>
         <span class="meeting-select-arrow">▼</span>
       </div>
+    </div>
+
+    <!-- Discussion points panel -->
+    <div class="discuss-panel" id="discussPanel">
+      <div class="discuss-header" onclick="toggleDiscussPanel()">
+        <div class="discuss-header-left">
+          <span class="discuss-header-title">💬 Discussion Points</span>
+          <span class="discuss-header-count" id="discussCount"></span>
+        </div>
+        <span class="discuss-chevron">▼</span>
+      </div>
+      <div class="discuss-body" id="discussBody"></div>
     </div>
 
     <!-- Note -->
@@ -762,6 +899,7 @@ function init() {
   applyTheme(cfg.theme || '#2d6a4f');
   loadTodos();
   loadPeople();
+  loadDiscuss();
   populatePersonSelect();
   updateTodoBadge();
   loadShortcuts();
@@ -882,6 +1020,12 @@ async function pasteMeetings() {
     populatePersonSelect();
   }
 
+  // discuss key — per-meeting discussion points
+  if (obj.discuss && typeof obj.discuss === 'object' && !Array.isArray(obj.discuss)) {
+    saveDiscuss(obj.discuss);
+    updateDiscussPanel();
+  }
+
   // todos key
   if (obj.todos && typeof obj.todos === 'object' && !Array.isArray(obj.todos)) {
     todos = [];
@@ -934,6 +1078,7 @@ function populateMeetingSelect(data, autoSelect) {
   if (autoSelect && data.length > 0) {
     sel.value = smartSelectIndex(data);
     sel.classList.add('has-value');
+    updateDiscussPanel();
   }
   // Start auto-update interval (every 60s)
   if (meetingAutoTimer) clearInterval(meetingAutoTimer);
@@ -976,6 +1121,7 @@ function parseTimeMins(timeStr) {
 function onMeetingChange() {
   document.getElementById('meetingSelect').classList.toggle('has-value',
     document.getElementById('meetingSelect').value !== '');
+  updateDiscussPanel();
 }
 function onMeetingToggle() {
   const checked = document.getElementById('meetingCheck').checked;
@@ -1272,6 +1418,7 @@ function renderTodos() {
           e.stopPropagation();
           completePersonTask(selectedPerson, bucket, taskText);
         });
+        attachLongPress(row, function() { openMeetingPicker(null, taskText, selectedPerson, bucket); });
         section.appendChild(row);
       });
       scroll.appendChild(section);
@@ -1309,6 +1456,7 @@ function renderTodos() {
       row.innerHTML = '<div class="todo-row-check"></div>'
         + '<div class="todo-row-body"><div class="todo-row-text">' + escapeHtml(t.text) + '</div>' + metaHtml + '</div>';
       row.querySelector('.todo-row-check').addEventListener('click', function(e) { e.stopPropagation(); completeTodo(t.id); });
+      attachLongPress(row, function() { openMeetingPicker(t.id, t.text, null, null); });
       section.appendChild(row);
     });
     scroll.appendChild(section);
@@ -1779,6 +1927,224 @@ function toggleType(idx) {
   renderActionTypes();
 }
 
+// ── Discussion Points ─────────────────────────────
+const DISCUSS_KEY = 'slacknotes_discuss';
+let discussData = {}; // { "Meeting Title": { points: [...], agenda: [...] } }
+
+function loadDiscuss() {
+  try { discussData = JSON.parse(localStorage.getItem(DISCUSS_KEY)) || {}; }
+  catch { discussData = {}; }
+}
+function saveDiscuss(obj) {
+  // Merge incoming discuss points with existing agenda items
+  Object.keys(obj).forEach(function(title) {
+    const pts = Array.isArray(obj[title]) ? obj[title] : [];
+    if (!discussData[title]) discussData[title] = { points: [], agenda: [] };
+    discussData[title].points = pts;
+    if (!discussData[title].agenda) discussData[title].agenda = [];
+  });
+  localStorage.setItem(DISCUSS_KEY, JSON.stringify(discussData));
+}
+function saveDiscussLocal() {
+  localStorage.setItem(DISCUSS_KEY, JSON.stringify(discussData));
+}
+
+function getSelectedMeetingTitle() {
+  const sel = document.getElementById('meetingSelect');
+  if (!sel || sel.value === '') return null;
+  const m = meetings[parseInt(sel.value)];
+  return m ? m.title : null;
+}
+
+function toggleDiscussPanel() {
+  const panel = document.getElementById('discussPanel');
+  panel.classList.toggle('expanded');
+}
+
+function updateDiscussPanel() {
+  const panel   = document.getElementById('discussPanel');
+  const body    = document.getElementById('discussBody');
+  const countEl = document.getElementById('discussCount');
+  if (!panel || !body) return;
+
+  const title = getSelectedMeetingTitle();
+  const checked = document.getElementById('meetingCheck').checked;
+  const data = title && checked ? discussData[title] : null;
+  const points  = data ? (data.points  || []) : [];
+  const agenda  = data ? (data.agenda  || []) : [];
+  const total   = points.length + agenda.length;
+
+  if (!title || !checked || total === 0) {
+    panel.classList.remove('visible', 'expanded');
+    return;
+  }
+
+  panel.classList.add('visible');
+  countEl.textContent = total + ' point' + (total !== 1 ? 's' : '');
+  body.innerHTML = '';
+
+  // Agenda items first (moved from todos)
+  agenda.forEach(function(pt) {
+    const meetingTitle = title; // captured from outer scope
+    const row = document.createElement('div');
+    row.className = 'discuss-point';
+    row.innerHTML = '<span class="discuss-agenda-tag">agenda</span>'
+      + '<span class="discuss-point-text">' + escapeHtml(pt) + '</span>'
+      + '<button class="discuss-insert-btn discuss-done-btn" title="Mark done">✓ Done</button>';
+    row.querySelector('.discuss-done-btn').addEventListener('click', function() {
+      completeAgendaItem(pt, meetingTitle);
+    });
+    body.appendChild(row);
+  });
+
+  // Discussion points
+  points.forEach(function(pt) {
+    const row = document.createElement('div');
+    row.className = 'discuss-point';
+    row.innerHTML = '<span class="discuss-point-text">' + escapeHtml(pt) + '</span>'
+      + '<button class="discuss-insert-btn" title="Insert into note">\u2193 Insert</button>';
+    row.querySelector('.discuss-insert-btn').addEventListener('click', function() {
+      insertIntoNote(pt);
+    });
+    body.appendChild(row);
+  });
+}
+
+function insertIntoNote(text) {
+  const ta = document.getElementById('noteText');
+  const start = ta.selectionStart;
+  const end   = ta.selectionEnd;
+  const val   = ta.value;
+  const prefix = val.slice(0, start);
+  const suffix = val.slice(end);
+  const insert = (prefix && !prefix.endsWith('\n') ? '\n' : '') + text;
+  ta.value = prefix + insert + suffix;
+  ta.selectionStart = ta.selectionEnd = start + insert.length;
+  ta.focus();
+  onNoteInput();
+}
+
+// ── Meeting picker (move todo to meeting agenda) ───
+let _pickerTodo = null; // { id, text, personName, bucket } — null means My Tasks todo
+
+function openMeetingPicker(todoId, taskText, personName, bucket) {
+  _pickerTodo = { id: todoId, text: taskText, personName: personName || null, bucket: bucket || null };
+  document.getElementById('meetingPickTaskLabel').textContent = taskText;
+  const list = document.getElementById('meetingPickList');
+  list.innerHTML = '';
+  if (!meetings || meetings.length === 0) {
+    list.innerHTML = '<div class="meeting-pick-empty">No meetings loaded — paste your JSON first</div>';
+  } else {
+    meetings.forEach(function(m) {
+      const item = document.createElement('div');
+      item.className = 'meeting-pick-item';
+      item.innerHTML = '<span class="meeting-pick-time">' + (m.time || '') + '</span>'
+        + '<span class="meeting-pick-name">' + escapeHtml(m.title) + '</span>';
+      item.addEventListener('click', function() { assignToMeeting(m.title); });
+      list.appendChild(item);
+    });
+  }
+  document.getElementById('meetingPickOverlay').classList.add('open');
+}
+
+function closeMeetingPicker(e) {
+  if (e && e.target !== document.getElementById('meetingPickOverlay')) return;
+  document.getElementById('meetingPickOverlay').classList.remove('open');
+  _pickerTodo = null;
+}
+
+async function assignToMeeting(meetingTitle) {
+  document.getElementById('meetingPickOverlay').classList.remove('open');
+  if (!_pickerTodo) return;
+  const { id, text, personName, bucket } = _pickerTodo;
+  _pickerTodo = null;
+
+  // Add to discuss agenda
+  if (!discussData[meetingTitle]) discussData[meetingTitle] = { points: [], agenda: [] };
+  if (!discussData[meetingTitle].agenda) discussData[meetingTitle].agenda = [];
+  if (!discussData[meetingTitle].agenda.includes(text)) {
+    discussData[meetingTitle].agenda.push(text);
+  }
+  saveDiscussLocal();
+  updateDiscussPanel();
+
+  // Remove from todos or person tasks
+  if (personName) {
+    const p = people.find(function(p) { return p.person === personName; });
+    if (p && p.buckets && p.buckets[bucket]) {
+      p.buckets[bucket].todos = p.buckets[bucket].todos.filter(function(t) { return t !== text; });
+    }
+    savePeople(people);
+  } else {
+    todos = todos.filter(function(t) { return t.id !== id; });
+    saveTodos();
+  }
+  renderTodos();
+
+
+
+
+  toast('📅 Moved to agenda: ' + meetingTitle, 'success');
+}
+
+async function completeAgendaItem(text, meetingTitle) {
+  const cfg = loadCfg();
+  if (!cfg.webhook) { toast('No webhook configured', 'error'); return; }
+  const msg = '\u2705 Done: ' + text + (meetingTitle ? '\n\uD83D\uDDD3\uFE0F ' + meetingTitle : '');
+  let ok = false;
+  try {
+    const res = await fetch(cfg.webhook, { method: 'POST', body: JSON.stringify({ message: msg }) });
+    ok = res.ok;
+  } catch(e) { ok = false; }
+  if (!ok) { toast('Send failed — item kept', 'error'); return; }
+  // Remove from agenda
+  if (discussData[meetingTitle] && discussData[meetingTitle].agenda) {
+    discussData[meetingTitle].agenda = discussData[meetingTitle].agenda.filter(function(t) { return t !== text; });
+    saveDiscussLocal();
+  }
+  updateDiscussPanel();
+  toast('Done & sent to Slack ✓', 'success');
+}
+
+// ── Long press handler ────────────────────────────
+const LONG_PRESS_MS = 500;
+
+function attachLongPress(el, onLongPress) {
+  let timer = null;
+  let didLongPress = false;
+
+  function start(e) {
+    // Don't trigger on check circle taps
+    if (e.target.classList.contains('todo-row-check') || e.target.closest('.todo-row-check')) return;
+    didLongPress = false;
+    el.classList.add('longpress-active');
+    timer = setTimeout(function() {
+      didLongPress = true;
+      el.classList.remove('longpress-active');
+      if (navigator.vibrate) navigator.vibrate(40);
+      onLongPress();
+    }, LONG_PRESS_MS);
+  }
+  function cancel() {
+    clearTimeout(timer);
+    el.classList.remove('longpress-active');
+  }
+  function end(e) {
+    cancel();
+    // If it was a long press, prevent click from firing
+    if (didLongPress) { e.preventDefault(); e.stopPropagation(); }
+  }
+
+  // Touch (iPhone)
+  el.addEventListener('touchstart', start, { passive: true });
+  el.addEventListener('touchend', end);
+  el.addEventListener('touchcancel', cancel);
+  // Mouse (Mac desktop)
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mouseup', end);
+  el.addEventListener('mouseleave', cancel);
+}
+
 
 init();
 </script>
@@ -1797,6 +2163,20 @@ init();
       <button class="share-btn share-btn-copy" onclick="copyShareContent()">📋 Copy</button>
       <button class="share-btn share-btn-email" onclick="openMailto()">✉️ Open in Mail</button>
     </div>
+  </div>
+</div>
+
+<!-- Meeting picker sheet (for moving todos to meetings) -->
+<div class="meeting-pick-overlay" id="meetingPickOverlay" onclick="closeMeetingPicker(event)">
+  <div class="meeting-pick-sheet" onclick="event.stopPropagation()">
+    <div class="meeting-pick-header">
+      <div>
+        <div class="meeting-pick-title">Add to meeting agenda</div>
+        <div class="meeting-pick-task" id="meetingPickTaskLabel"></div>
+      </div>
+      <button class="meeting-pick-close" onclick="closeMeetingPicker()">✕</button>
+    </div>
+    <div class="meeting-pick-list" id="meetingPickList"></div>
   </div>
 </div>
 </body>
