@@ -587,7 +587,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.6</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.8</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -605,11 +605,21 @@ input[type="color"] {
         placeholder="#general" autocomplete="off" autocorrect="off">
     </div>
     <div class="field">
-      <div class="field-label">Data URL <span style="font-weight:400;font-size:10px;opacity:0.55;text-transform:none;letter-spacing:0">(optional)</span></div>
+      <div class="field-label">Data URL <span style="font-weight:400;font-size:10px;opacity:0.55;text-transform:none;letter-spacing:0">(.enc file, optional)</span></div>
       <input class="field-input" type="url" id="jsonUrlInput"
-        placeholder="https://…/data.json"
-        autocomplete="off" autocorrect="off" spellcheck="false">
-      <p class="field-hint">JSON feed URL for meetings, todos &amp; people. When set, the topbar button becomes ⟳ and fetches from this URL. Leave blank to use clipboard paste (📋).</p>
+        placeholder="https://…/data.enc"
+        autocomplete="off" autocorrect="off" spellcheck="false"
+        oninput="onDataUrlChange()">
+      <p class="field-hint">URL of your encrypted data file (.enc). When set, the topbar button becomes ⟳. Leave blank to use clipboard paste (📋).</p>
+    </div>
+    <div class="field" id="decKeyField" style="display:none">
+      <div class="field-label">Decryption Key</div>
+      <input class="field-input" type="password" id="decKeyInput"
+        placeholder="Base64-encoded AES-256 key"
+        autocomplete="off" spellcheck="false">
+      <p class="field-hint">Required when a Data URL is set. Stored locally in your browser only — never sent anywhere.</p>
+      <div id="testConnResult" style="display:none;margin-top:8px;font-family:'Courier Prime',monospace;font-size:12px;padding:9px 13px;border-radius:8px;line-height:1.5;"></div>
+      <button type="button" class="btn-secondary" onclick="testConnection()" style="margin-top:8px;padding:11px 17px;font-size:13px;">Test Connection</button>
     </div>
     <div class="field">
       <div class="field-label">Theme colour</div>
@@ -838,7 +848,7 @@ function saveCfg(updates) {
 }
 
 // ── syncRefreshIcon ──────────────────────────────────────────────────
-// Shows ⟳ when a JSON URL is set, 📋 otherwise
+// Shows ⟳ when a Data URL is configured, 📋 otherwise
 function syncRefreshIcon() {
   const cfg = loadCfg();
   const icon = (cfg.jsonUrl && cfg.jsonUrl.startsWith('https://')) ? '⟳' : '📋';
@@ -848,29 +858,115 @@ function syncRefreshIcon() {
   });
 }
 
-// ── fetchJsonData — pull data from configured URL ───────────────────
-async function fetchJsonData(silent) {
+// ── Decryption key storage (separate from cfg to match spec) ─────────
+const DEC_KEY_STORAGE = 'slacknotes_dec_key';
+function loadDecKey() { return localStorage.getItem(DEC_KEY_STORAGE) || ''; }
+function saveDecKey(k) { if (k) localStorage.setItem(DEC_KEY_STORAGE, k); else localStorage.removeItem(DEC_KEY_STORAGE); }
+
+// ── AES-GCM decrypt helper ────────────────────────────────────────────
+// File format: [12-byte IV] + [ciphertext + 16-byte auth tag]
+async function aesGcmDecrypt(arrayBuffer, keyB64) {
+  const bytes = new Uint8Array(arrayBuffer);
+  const iv = bytes.slice(0, 12);
+  const ciphertext = bytes.slice(12); // includes 16-byte auth tag at end
+  const rawKey = Uint8Array.from(atob(keyB64), c => c.charCodeAt(0));
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', rawKey, { name: 'AES-GCM' }, false, ['decrypt']
+  );
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ciphertext);
+  return new TextDecoder().decode(decrypted);
+}
+
+// ── Last known raw JSON string for change detection ───────────────────
+let _lastDataJson = null;
+let _pollTimer = null;
+
+// ── fetchAndDecrypt — fetch .enc, decrypt, process ───────────────────
+// silent=true → no loading overlay, no success toast, retains last data on error
+async function fetchAndDecrypt(silent) {
   const cfg = loadCfg();
+  const keyB64 = loadDecKey();
   if (!cfg.jsonUrl || !cfg.jsonUrl.startsWith('https://')) return false;
+  if (!keyB64) {
+    if (!silent) toast('Decryption key not set — check Settings', 'error');
+    return false;
+  }
+
   if (!silent) document.getElementById('loadingOverlay').classList.add('show');
+
   let obj;
   try {
     const res = await fetch(cfg.jsonUrl);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    obj = await res.json();
+    const buffer = await res.arrayBuffer();
+    const jsonStr = await aesGcmDecrypt(buffer, keyB64);
+    obj = JSON.parse(jsonStr);
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Unexpected JSON shape');
+
+    // Only re-process if data actually changed
+    const changed = jsonStr !== _lastDataJson;
+    _lastDataJson = jsonStr;
+    if (changed) processJsonData(obj);
+
   } catch(e) {
     document.getElementById('loadingOverlay').classList.remove('show');
     if (!silent) toast('Fetch failed: ' + e.message, 'error');
+    // Retain last known data — do not wipe
     return false;
   }
+
   document.getElementById('loadingOverlay').classList.remove('show');
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
-    if (!silent) toast('Invalid JSON from URL', 'error');
-    return false;
-  }
-  processJsonData(obj);
   if (!silent) toast('Data refreshed ✓', 'success');
   return true;
+}
+
+// ── Start/restart 5-minute polling ───────────────────────────────────
+function startDataPoll() {
+  if (_pollTimer) clearInterval(_pollTimer);
+  _pollTimer = setInterval(function() {
+    fetchAndDecrypt(true); // silent background refresh
+  }, 5 * 60 * 1000);
+}
+
+// ── Test Connection (from Settings screen) ───────────────────────────
+async function testConnection() {
+  const url = document.getElementById('jsonUrlInput').value.trim();
+  const keyB64 = document.getElementById('decKeyInput').value.trim();
+  const resultEl = document.getElementById('testConnResult');
+  resultEl.style.display = 'block';
+  resultEl.style.background = 'rgba(0,0,0,0.05)';
+  resultEl.style.color = 'var(--ink-light)';
+  resultEl.textContent = 'Testing…';
+
+  if (!url.startsWith('https://')) {
+    resultEl.style.background = 'rgba(192,57,43,0.1)';
+    resultEl.style.color = '#c0392b';
+    resultEl.textContent = '✗ URL must start with https://';
+    return;
+  }
+  if (!keyB64) {
+    resultEl.style.background = 'rgba(192,57,43,0.1)';
+    resultEl.style.color = '#c0392b';
+    resultEl.textContent = '✗ Decryption key is required';
+    return;
+  }
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const buffer = await res.arrayBuffer();
+    const jsonStr = await aesGcmDecrypt(buffer, keyB64);
+    const obj = JSON.parse(jsonStr);
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Unexpected JSON shape');
+    const keys = Object.keys(obj).join(', ');
+    resultEl.style.background = 'rgba(26,122,74,0.1)';
+    resultEl.style.color = '#1a7a4a';
+    resultEl.textContent = '✓ Connected — keys: ' + keys;
+  } catch(e) {
+    resultEl.style.background = 'rgba(192,57,43,0.1)';
+    resultEl.style.color = '#c0392b';
+    resultEl.textContent = '✗ ' + e.message;
+  }
 }
 
 // ── processJsonData — shared by fetch and paste ──────────────────────
@@ -909,11 +1005,12 @@ function processJsonData(obj) {
   return obj;
 }
 
-// ── refreshData — URL or clipboard ──────────────────────────────────
+// ── refreshData — URL+key → fetchAndDecrypt, else clipboard ──────────
 async function refreshData() {
   const cfg = loadCfg();
-  if (cfg.jsonUrl && cfg.jsonUrl.startsWith('https://')) {
-    await fetchJsonData(false);
+  const keyB64 = loadDecKey();
+  if (cfg.jsonUrl && cfg.jsonUrl.startsWith('https://') && keyB64) {
+    await fetchAndDecrypt(false);
   } else {
     await pasteMeetings();
   }
@@ -936,10 +1033,27 @@ function init() {
   }
   restoreNoteForCurrentMeeting();
   syncRefreshIcon();
+
+  const hasUrl = cfg.jsonUrl && cfg.jsonUrl.startsWith('https://');
+  const hasKey = !!loadDecKey();
+
   if (cfg.webhook && cfg.channel) {
+    // If URL is set but key is missing, force settings so user can enter it
+    if (hasUrl && !hasKey) {
+      showScreen('setupScreen');
+      renderSwatches(cfg.theme || '#2d6a4f');
+      renderShortcutsGrid();
+      document.getElementById('setupTitle').innerHTML = 'Decryption key<br><strong>required.</strong>';
+      document.getElementById('backBtn').style.display = 'block';
+      document.getElementById('jsonUrlInput').value = cfg.jsonUrl;
+      document.getElementById('decKeyField').style.display = 'block';
+      toast('Enter your decryption key to continue', 'error');
+      return;
+    }
     showMain(cfg);
-    if (cfg.jsonUrl && cfg.jsonUrl.startsWith('https://')) {
-      setTimeout(function() { fetchJsonData(true); }, 100);
+    if (hasUrl && hasKey) {
+      setTimeout(function() { fetchAndDecrypt(true); }, 100);
+      startDataPoll();
     }
   } else {
     showScreen('setupScreen');
@@ -968,6 +1082,11 @@ function openSettings() {
   document.getElementById('webhookInput').value = cfg.webhook || '';
   document.getElementById('channelInput').value = cfg.channel ? '#' + cfg.channel.replace(/^#/, '') : '';
   document.getElementById('jsonUrlInput').value = cfg.jsonUrl || '';
+  // Show decKey field and populate if URL is already set
+  const hasUrl = !!(cfg.jsonUrl && cfg.jsonUrl.startsWith('https://'));
+  document.getElementById('decKeyField').style.display = hasUrl ? 'block' : 'none';
+  document.getElementById('decKeyInput').value = loadDecKey();
+  document.getElementById('testConnResult').style.display = 'none';
   document.getElementById('setupTitle').innerHTML = 'Update your<br><strong>settings.</strong>';
   document.getElementById('backBtn').style.display = 'block';
   showScreen('setupScreen');
@@ -977,18 +1096,29 @@ function openSettings() {
 function goBack() {
   const cfg = loadCfg(); if (cfg.webhook && cfg.channel) showMain(cfg);
 }
+// Show/hide decryption key field as user types in the URL field
+function onDataUrlChange() {
+  const url = document.getElementById('jsonUrlInput').value.trim();
+  document.getElementById('decKeyField').style.display = url.startsWith('https://') ? 'block' : 'none';
+  document.getElementById('testConnResult').style.display = 'none';
+}
 function saveSetup() {
   const webhook = document.getElementById('webhookInput').value.trim();
   const channel = document.getElementById('channelInput').value.trim().replace(/^#/, '');
   const jsonUrl = document.getElementById('jsonUrlInput').value.trim();
+  const decKey  = document.getElementById('decKeyInput').value.trim();
   if (!webhook.startsWith('https://hooks.slack.com/')) { toast('Enter a valid Slack webhook URL', 'error'); return; }
   if (!channel) { toast('Enter a channel name', 'error'); return; }
   if (jsonUrl && !jsonUrl.startsWith('https://')) { toast('Data URL must start with https://', 'error'); return; }
+  if (jsonUrl && !decKey) { toast('Decryption key is required when a Data URL is set', 'error'); return; }
   saveCfg({ webhook, channel, jsonUrl: jsonUrl || '' });
+  saveDecKey(jsonUrl ? decKey : ''); // clear key if URL removed
   syncRefreshIcon();
   showMain({ webhook, channel });
   toast('Settings saved ✓', 'success');
-  if (jsonUrl) setTimeout(() => fetchJsonData(true), 200);
+  if (jsonUrl && decKey) {
+    setTimeout(() => { fetchAndDecrypt(true); startDataPoll(); }, 200);
+  }
 }
 
 // ── Auto-save draft ───────────────────────────────────────────────────
@@ -1502,9 +1632,10 @@ function shareTodos() {
       bodyText += '\n';
     });
   }
+  const NEO_FOOTER = '\n\n---\nSent by Neo \u2014 The System Behind the Leader (Susheel).';
   window._shareSubject = subject;
-  window._shareText = bodyText.trim();
-  document.getElementById('sharePreview').value = bodyText.trim();
+  window._shareText = bodyText.trim() + NEO_FOOTER;
+  document.getElementById('sharePreview').value = bodyText.trim() + NEO_FOOTER;
   document.getElementById('shareOverlay').classList.add('open');
 }
 
