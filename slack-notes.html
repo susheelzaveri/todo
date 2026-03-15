@@ -143,6 +143,31 @@ input[type="color"] {
 }
 
 /* meeting */
+.meeting-day-pills {
+  display: flex; gap: 6px; padding: 2px 0 6px;
+}
+.day-pill {
+  flex: 1; padding: 6px 4px; border-radius: 12px;
+  font-family: 'Courier Prime', monospace; font-size: 11px;
+  font-weight: 700; letter-spacing: 0.04em; cursor: pointer;
+  border: 1.5px solid var(--border); background: var(--card);
+  color: var(--ink-light); transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 0; text-align: center;
+}
+.day-pill.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.day-pill.today { border-color: var(--accent); color: var(--accent); }
+.day-pill.today.active { background: var(--accent); color: #fff; }
+.day-pill.empty { opacity: 0.35; cursor: default; pointer-events: none; }
+.day-pill-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
+.day-pill-meta {
+  font-size: 9px; font-weight: 400; letter-spacing: 0.02em;
+  opacity: 0.65; white-space: nowrap;
+}
+.day-pill.active .day-pill-meta { opacity: 0.8; }
 .meeting-row { display: flex; align-items: center; gap: 10px; }
 .meeting-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0; }
 .meeting-toggle input[type="checkbox"] {
@@ -603,7 +628,25 @@ input[type="color"] {
   width: 30px; height: 30px; font-size: 16px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; color: var(--ink-light);
 }
+.meeting-pick-search-wrap {
+  padding: 10px 16px 0; flex-shrink: 0;
+}
+.meeting-pick-search {
+  width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 9px 14px;
+  font-family: 'Lato', sans-serif; font-size: 14px; color: var(--ink);
+  outline: none; -webkit-appearance: none; transition: border-color 0.2s;
+}
+.meeting-pick-search:focus { border-color: var(--accent); }
+.meeting-pick-search::placeholder { color: var(--ink-faint); }
 .meeting-pick-list { flex: 1; overflow-y: auto; }
+.meeting-pick-day-header {
+  padding: 10px 20px 4px;
+  font-family: 'Courier Prime', monospace; font-size: 10px;
+  font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-faint); background: var(--bg);
+  position: sticky; top: 0; z-index: 1;
+}
 .meeting-pick-item {
   display: flex; align-items: center; gap: 14px;
   padding: 15px 20px; border-bottom: 1px solid var(--border);
@@ -634,7 +677,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.13</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.16</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -706,6 +749,7 @@ input[type="color"] {
   </div>
   <div class="main-scroll">
     <div class="section-label">Meeting</div>
+    <div class="meeting-day-pills" id="meetingDayPills"></div>
     <div class="meeting-row">
       <label class="meeting-toggle" for="meetingCheck">
         <input type="checkbox" id="meetingCheck" checked onchange="onMeetingToggle()">
@@ -1291,42 +1335,182 @@ async function pasteMeetings() {
 // ── Meeting select ────────────────────────────────────────────────────
 let meetingAutoTimer = null;
 
-function populateMeetingSelect(data, autoSelect) {
+// ── Day pills helpers ────────────────────────────────────────────────
+
+function getMeetingDate(m) {
+  // Returns 'YYYY-MM-DD' for a meeting; falls back to today if no date field
+  if (m.date) return m.date;
+  return new Date().toISOString().slice(0, 10);
+}
+
+function buildDayPills(data) {
+  const pillsEl = document.getElementById('meetingDayPills');
+  if (!pillsEl) return;
+  pillsEl.innerHTML = '';
+
+  const today     = new Date().toISOString().slice(0, 10);
+  const todayDate = new Date(today + 'T00:00:00');
+
+  // ── Current week Mon-Fri ──────────────────────────────────────────
+  // Find Monday of this week
+  const dow     = todayDate.getDay(); // 0=Sun
+  const toMon   = dow === 0 ? -6 : 1 - dow;
+  const monday  = new Date(todayDate);
+  monday.setDate(todayDate.getDate() + toMon);
+
+  // Collect weekend dates that have meetings
+  const meetingWeekendDates = new Set(
+    data.map(m => getMeetingDate(m)).filter(d => {
+      const d2 = new Date(d + 'T00:00:00').getDay();
+      return d2 === 0 || d2 === 6;
+    })
+  );
+
+  // Build Mon-Fri + any weekend days with meetings
+  const pillDays = [];
+  for (let i = 0; i < 7; i++) {
+    const d   = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const wd  = d.getDay();
+    const isWeekend = wd === 0 || wd === 6;
+    if (!isWeekend || meetingWeekendDates.has(iso)) {
+      pillDays.push(iso);
+    }
+  }
+
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  pillDays.forEach(iso => {
+    const dayMeetings = data.filter(m => getMeetingDate(m) === iso);
+    const isEmpty  = dayMeetings.length === 0;
+    const isToday  = iso === today;
+    const d        = new Date(iso + 'T00:00:00');
+    const dayLabel = dayNames[d.getDay()] + ' ' + d.getDate();
+
+    // Count + hours
+    const count     = dayMeetings.length;
+    const totalMins = dayMeetings.reduce((sum, m) => sum + (m.duration || 30), 0);
+    const hours     = totalMins / 60;
+    const hoursStr  = Number.isInteger(hours) ? hours + 'h' : hours.toFixed(1) + 'h';
+    const metaStr   = count > 0 ? count + 'm · ' + hoursStr : '';
+
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'day-pill'
+      + (isToday ? ' today' : '')
+      + (isEmpty ? ' empty'  : '');
+    pill.dataset.date = iso;
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'day-pill-label';
+    labelSpan.textContent = dayLabel;
+    pill.appendChild(labelSpan);
+
+    if (metaStr) {
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'day-pill-meta';
+      metaSpan.textContent = metaStr;
+      pill.appendChild(metaSpan);
+    }
+
+    if (!isEmpty) {
+      pill.addEventListener('click', () => selectDayPill(iso));
+    }
+    pillsEl.appendChild(pill);
+  });
+
+  // Auto-select: today if it has meetings, else nearest day this week with meetings
+  const datesWithMeetings = data.map(m => getMeetingDate(m));
+  const thisWeekWithMeetings = pillDays.filter(d => datesWithMeetings.includes(d));
+  const activePill = thisWeekWithMeetings.includes(today)
+    ? today
+    : (thisWeekWithMeetings.length ? thisWeekWithMeetings[0] : today);
+  selectDayPill(activePill, false);
+}
+
+let _activePillDate = null;
+
+function selectDayPill(date, autoSelectMeeting) {
+  _activePillDate = date;
+  if (autoSelectMeeting === undefined) autoSelectMeeting = true;
+
+  // Update pill active state
+  document.querySelectorAll('.day-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.date === date);
+  });
+
+  // Filter dropdown to this day's meetings
+  const dayMeetings = meetings.filter(m => getMeetingDate(m) === date);
+  populateMeetingSelectForDay(dayMeetings, autoSelectMeeting);
+}
+
+function populateMeetingSelectForDay(dayData, autoSelect) {
   const sel = document.getElementById('meetingSelect');
   sel.innerHTML = '';
   sel.classList.remove('no-meetings', 'has-value');
+
   const blank = document.createElement('option');
   blank.value = ''; blank.textContent = '— No meeting —';
   sel.appendChild(blank);
-  data.forEach((m, i) => {
+
+  dayData.forEach(m => {
+    // Use global meetings index for value so currentNoteKey stays consistent
+    const globalIdx = meetings.indexOf(m);
     const opt = document.createElement('option');
-    opt.value = i;
+    opt.value = globalIdx;
     opt.textContent = m.time ? m.time + '  ·  ' + m.title : m.title;
     sel.appendChild(opt);
   });
-  if (autoSelect && data.length > 0) {
-    sel.value = smartSelectIndex(data);
+
+  if (autoSelect && dayData.length > 0) {
+    const best = smartSelectIndexFromSubset(dayData);
+    const globalIdx = meetings.indexOf(best);
+    sel.value = String(globalIdx);
     sel.classList.add('has-value');
     updateDiscussPanel();
+    restoreNoteForCurrentMeeting();
+  } else if (dayData.length === 0) {
+    sel.classList.add('no-meetings');
   }
+}
+
+function populateMeetingSelect(data, autoSelect) {
   if (meetingAutoTimer) clearInterval(meetingAutoTimer);
+  buildDayPills(data);
+  // Pills handle dropdown population; start auto-update timer
   if (data.length > 0) meetingAutoTimer = setInterval(() => autoUpdateMeeting(data), 300000);
 }
+
 function autoUpdateMeeting(data) {
   const sel = document.getElementById('meetingSelect');
   if (!document.getElementById('meetingCheck').checked) return;
-  const best = String(smartSelectIndex(data));
-  if (sel.value !== best) {
-    sel.value = best;
-    sel.classList.toggle('has-value', best !== '');
+  const activePillDate = _activePillDate || new Date().toISOString().slice(0, 10);
+  const dayMeetings = data.filter(m => getMeetingDate(m) === activePillDate);
+  if (!dayMeetings.length) return;
+  const best = smartSelectIndexFromSubset(dayMeetings);
+  const globalIdx = String(meetings.indexOf(best));
+  if (sel.value !== globalIdx) {
+    sel.value = globalIdx;
+    sel.classList.toggle('has-value', globalIdx !== '-1');
     sel.style.opacity = '0.4';
     setTimeout(() => sel.style.opacity = '1', 300);
   }
 }
+
 function smartSelectIndex(data) {
+  // Legacy — used when no day filter active
   const now = new Date(), nowMins = now.getHours() * 60 + now.getMinutes();
   let best = 0;
   data.forEach((m, j) => { if (parseTimeMins(m.time) <= nowMins) best = j; });
+  return best;
+}
+
+function smartSelectIndexFromSubset(subset) {
+  // Returns the meeting object (not index) best matching current time
+  const now = new Date(), nowMins = now.getHours() * 60 + now.getMinutes();
+  let best = subset[0];
+  subset.forEach(m => { if (parseTimeMins(m.time) <= nowMins) best = m; });
   return best;
 }
 function parseTimeMins(timeStr) {
@@ -2080,22 +2264,68 @@ function insertIntoNote(text) {
 
 // ── Meeting picker ────────────────────────────────────────────────────
 let _pickerTodo = null;
-function openMeetingPicker(todoId, taskText, personName, bucket) {
-  _pickerTodo = { id: todoId, text: taskText, personName: personName || null, bucket: bucket || null };
-  document.getElementById('meetingPickTaskLabel').textContent = taskText;
+function renderMeetingPickerGrouped() {
   const list = document.getElementById('meetingPickList');
   list.innerHTML = '';
   if (!meetings || !meetings.length) {
     list.innerHTML = '<div class="meeting-pick-empty">No meetings loaded — paste your JSON first</div>';
-  } else {
-    meetings.forEach(m => {
+    return;
+  }
+  // Group by date
+  const groups = {};
+  const order  = [];
+  meetings.forEach(m => {
+    const d = getMeetingDate(m);
+    if (!groups[d]) { groups[d] = []; order.push(d); }
+    groups[d].push(m);
+  });
+  order.sort();
+  const today = new Date().toISOString().slice(0, 10);
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  order.forEach(date => {
+    const d    = new Date(date + 'T00:00:00');
+    const isToday = date === today;
+    const label = (isToday ? 'Today — ' : '') + dayNames[d.getDay()] + ', ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const hdr  = document.createElement('div');
+    hdr.className = 'meeting-pick-day-header';
+    hdr.textContent = label;
+    list.appendChild(hdr);
+    groups[date].forEach(m => {
       const item = document.createElement('div'); item.className = 'meeting-pick-item';
       item.innerHTML = '<span class="meeting-pick-time">' + (m.time || '') + '</span>'
         + '<span class="meeting-pick-name">' + escapeHtml(m.title) + '</span>';
       item.addEventListener('click', () => assignToMeeting(m.title));
       list.appendChild(item);
     });
+  });
+}
+
+function filterMeetingPicker(query) {
+  const list = document.getElementById('meetingPickList');
+  const q = query.trim().toLowerCase();
+  if (!q) { renderMeetingPickerGrouped(); return; }
+  list.innerHTML = '';
+  const matches = meetings.filter(m => m.title.toLowerCase().includes(q));
+  if (!matches.length) {
+    list.innerHTML = '<div class="meeting-pick-empty">No matches</div>';
+    return;
   }
+  matches.forEach(m => {
+    const item = document.createElement('div'); item.className = 'meeting-pick-item';
+    item.innerHTML = '<span class="meeting-pick-time">' + (m.time || '') + '</span>'
+      + '<span class="meeting-pick-name">' + escapeHtml(m.title) + '</span>';
+    item.addEventListener('click', () => assignToMeeting(m.title));
+    list.appendChild(item);
+  });
+}
+
+function openMeetingPicker(todoId, taskText, personName, bucket) {
+  _pickerTodo = { id: todoId, text: taskText, personName: personName || null, bucket: bucket || null };
+  document.getElementById('meetingPickTaskLabel').textContent = taskText;
+  // Clear search input
+  const searchEl = document.getElementById('meetingPickSearch');
+  if (searchEl) searchEl.value = '';
+  renderMeetingPickerGrouped();
   document.getElementById('meetingPickOverlay').classList.add('open');
 }
 function closeMeetingPicker(e) {
@@ -2206,6 +2436,11 @@ init();
         <div class="meeting-pick-task" id="meetingPickTaskLabel"></div>
       </div>
       <button class="meeting-pick-close" onclick="closeMeetingPicker()">✕</button>
+    </div>
+    <div class="meeting-pick-search-wrap">
+      <input class="meeting-pick-search" id="meetingPickSearch"
+        type="text" placeholder="Search meetings…"
+        oninput="filterMeetingPicker(this.value)" autocomplete="off">
     </div>
     <div class="meeting-pick-list" id="meetingPickList"></div>
   </div>
