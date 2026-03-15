@@ -587,7 +587,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.8</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.9</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -860,8 +860,8 @@ function syncRefreshIcon() {
 
 // ── Decryption key storage (separate from cfg to match spec) ─────────
 const DEC_KEY_STORAGE = 'slacknotes_dec_key';
-function loadDecKey() { return localStorage.getItem(DEC_KEY_STORAGE) || ''; }
-function saveDecKey(k) { if (k) localStorage.setItem(DEC_KEY_STORAGE, k); else localStorage.removeItem(DEC_KEY_STORAGE); }
+function loadDecKey() { return (localStorage.getItem(DEC_KEY_STORAGE) || '').replace(/\s+/g, ''); }
+function saveDecKey(k) { if (k) localStorage.setItem(DEC_KEY_STORAGE, k.replace(/\s+/g, '')); else localStorage.removeItem(DEC_KEY_STORAGE); }
 
 // ── AES-GCM decrypt helper ────────────────────────────────────────────
 // File format: [12-byte IV] + [ciphertext + 16-byte auth tag]
@@ -869,7 +869,19 @@ async function aesGcmDecrypt(arrayBuffer, keyB64) {
   const bytes = new Uint8Array(arrayBuffer);
   const iv = bytes.slice(0, 12);
   const ciphertext = bytes.slice(12); // includes 16-byte auth tag at end
-  const rawKey = Uint8Array.from(atob(keyB64), c => c.charCodeAt(0));
+
+  // Strip whitespace/newlines that may have crept in from copy-paste
+  const cleanB64 = keyB64.replace(/\s+/g, '');
+  let rawKey;
+  try {
+    rawKey = Uint8Array.from(atob(cleanB64), c => c.charCodeAt(0));
+  } catch(e) {
+    throw new Error('Decryption key is not valid Base64 — check Settings');
+  }
+  if (rawKey.length !== 32) {
+    throw new Error('Key must be 32 bytes (got ' + rawKey.length + ') — use --genkey to create one');
+  }
+
   const cryptoKey = await crypto.subtle.importKey(
     'raw', rawKey, { name: 'AES-GCM' }, false, ['decrypt']
   );
