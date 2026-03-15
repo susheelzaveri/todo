@@ -587,7 +587,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.9</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.10</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -942,43 +942,116 @@ function startDataPoll() {
 
 // ── Test Connection (from Settings screen) ───────────────────────────
 async function testConnection() {
-  const url = document.getElementById('jsonUrlInput').value.trim();
-  const keyB64 = document.getElementById('decKeyInput').value.trim();
+  const url    = document.getElementById('jsonUrlInput').value.trim();
+  const keyRaw = document.getElementById('decKeyInput').value.trim();
   const resultEl = document.getElementById('testConnResult');
-  resultEl.style.display = 'block';
-  resultEl.style.background = 'rgba(0,0,0,0.05)';
-  resultEl.style.color = 'var(--ink-light)';
-  resultEl.textContent = 'Testing…';
 
-  if (!url.startsWith('https://')) {
-    resultEl.style.background = 'rgba(192,57,43,0.1)';
-    resultEl.style.color = '#c0392b';
-    resultEl.textContent = '✗ URL must start with https://';
-    return;
-  }
-  if (!keyB64) {
-    resultEl.style.background = 'rgba(192,57,43,0.1)';
-    resultEl.style.color = '#c0392b';
-    resultEl.textContent = '✗ Decryption key is required';
-    return;
+  function setResult(ok, lines) {
+    resultEl.style.display    = 'block';
+    resultEl.style.background = ok ? 'rgba(26,122,74,0.1)' : 'rgba(192,57,43,0.1)';
+    resultEl.style.color      = ok ? '#1a7a4a' : '#c0392b';
+    resultEl.innerHTML        = lines.map(l => '<div>' + l + '</div>').join('');
   }
 
+  // ── Step 1: validate inputs ──────────────────────────────────────
+  if (!url.startsWith('https://')) { setResult(false, ['✗ URL must start with https://']); return; }
+  if (!keyRaw)                      { setResult(false, ['✗ Decryption key is required']);   return; }
+
+  const keyB64 = keyRaw.replace(/\s+/g, '');
+  setResult(null, ['⏳ Step 1/4: Fetching file…']);
+
+  // ── Step 2: fetch ────────────────────────────────────────────────
+  let buffer;
   try {
     const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const buffer = await res.arrayBuffer();
-    const jsonStr = await aesGcmDecrypt(buffer, keyB64);
-    const obj = JSON.parse(jsonStr);
-    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Unexpected JSON shape');
-    const keys = Object.keys(obj).join(', ');
-    resultEl.style.background = 'rgba(26,122,74,0.1)';
-    resultEl.style.color = '#1a7a4a';
-    resultEl.textContent = '✓ Connected — keys: ' + keys;
+    if (!res.ok) { setResult(false, ['✗ Fetch failed: HTTP ' + res.status]); return; }
+    buffer = await res.arrayBuffer();
   } catch(e) {
-    resultEl.style.background = 'rgba(192,57,43,0.1)';
-    resultEl.style.color = '#c0392b';
-    resultEl.textContent = '✗ ' + e.message;
+    setResult(false, ['✗ Fetch failed: ' + e.message]); return;
   }
+  const totalBytes = buffer.byteLength;
+  setResult(null, ['✓ Fetched ' + totalBytes + ' bytes', '⏳ Step 2/4: Decoding key…']);
+
+  // ── Step 3: decode + validate key ────────────────────────────────
+  let rawKey;
+  try {
+    rawKey = Uint8Array.from(atob(keyB64), c => c.charCodeAt(0));
+  } catch(e) {
+    setResult(false, [
+      '✓ Fetched ' + totalBytes + ' bytes',
+      '✗ Key is not valid Base64',
+      '  Tip: copy the key exactly from --genkey output',
+    ]); return;
+  }
+  if (rawKey.length !== 32) {
+    setResult(false, [
+      '✓ Fetched ' + totalBytes + ' bytes',
+      '✗ Key decoded to ' + rawKey.length + ' bytes (need exactly 32)',
+      '  Tip: you may have copied a truncated or padded key',
+    ]); return;
+  }
+  setResult(null, [
+    '✓ Fetched ' + totalBytes + ' bytes',
+    '✓ Key is 32 bytes',
+    '⏳ Step 3/4: Importing key…',
+  ]);
+
+  // ── Step 4: import key ────────────────────────────────────────────
+  let cryptoKey;
+  try {
+    cryptoKey = await crypto.subtle.importKey(
+      'raw', rawKey, { name: 'AES-GCM' }, false, ['decrypt']
+    );
+  } catch(e) {
+    setResult(false, [
+      '✓ Fetched ' + totalBytes + ' bytes',
+      '✓ Key is 32 bytes',
+      '✗ Key import failed: ' + e.message,
+    ]); return;
+  }
+  setResult(null, [
+    '✓ Fetched ' + totalBytes + ' bytes',
+    '✓ Key is 32 bytes',
+    '✓ Key imported',
+    '⏳ Step 4/4: Decrypting…',
+  ]);
+
+  // ── Step 5: decrypt ───────────────────────────────────────────────
+  const encBytes = new Uint8Array(buffer);
+  const iv         = encBytes.slice(0, 12);
+  const ciphertext = encBytes.slice(12);
+
+  let decrypted;
+  try {
+    decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ciphertext);
+  } catch(e) {
+    setResult(false, [
+      '✓ Fetched ' + totalBytes + ' bytes',
+      '✓ Key is 32 bytes · IV: ' + Array.from(iv.slice(0,4)).map(b=>b.toString(16).padStart(2,'0')).join('') + '…',
+      '✓ Key imported',
+      '✗ Decrypt failed — key does not match this file',
+      '  Tip: make sure you used the same --key when running encrypt_push.py',
+    ]); return;
+  }
+
+  // ── Step 6: parse JSON ────────────────────────────────────────────
+  let obj;
+  try {
+    obj = JSON.parse(new TextDecoder().decode(decrypted));
+  } catch(e) {
+    setResult(false, [
+      '✓ Decrypted successfully',
+      '✗ JSON parse failed: ' + e.message,
+      '  Tip: verify the source .json file is valid JSON',
+    ]); return;
+  }
+
+  const keys = Object.keys(obj).join(', ');
+  setResult(true, [
+    '✓ Fetched ' + totalBytes + ' bytes',
+    '✓ Decrypted ' + new TextDecoder().decode(decrypted).length + ' chars',
+    '✓ JSON parsed — keys: ' + keys,
+  ]);
 }
 
 // ── processJsonData — shared by fetch and paste ──────────────────────
