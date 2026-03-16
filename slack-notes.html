@@ -677,7 +677,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.16</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.17</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -1160,21 +1160,39 @@ function processJsonData(obj) {
     saveDiscuss(obj.discuss);
     updateDiscussPanel();
   }
+
+  // ── Todos: only sync if lastModified is present and newer than last sync ──
   if (obj.todos && typeof obj.todos === 'object' && !Array.isArray(obj.todos)) {
-    todos = [];
-    let added = 0;
-    Object.keys(obj.todos).forEach(function(cat) {
-      if (Array.isArray(obj.todos[cat])) {
-        obj.todos[cat].forEach(function(taskText) {
-          if (typeof taskText === 'string' && taskText.trim()) {
-            todos.push({ id: Date.now() * 1000 + added, text: taskText.trim(), meeting: '', cat: cat.toLowerCase(), date: '' });
-            added++;
-          }
-        });
-      }
-    });
-    saveTodos();
+    const feedTs   = obj.lastModified ? new Date(obj.lastModified).getTime() : null;
+    const syncedTs = localStorage.getItem(TODOS_SYNCED_KEY)
+      ? new Date(localStorage.getItem(TODOS_SYNCED_KEY)).getTime() : null;
+
+    if (!feedTs) {
+      // No lastModified in feed — skip todo sync entirely
+      console.log('[SlackNotes] todos: skipped (no lastModified in feed)');
+    } else if (syncedTs && feedTs <= syncedTs) {
+      // Feed is same age or older than last sync — skip
+      console.log('[SlackNotes] todos: skipped (feed not newer than last sync)');
+    } else {
+      // Feed is newer (or first sync) — replace todos
+      todos = [];
+      let added = 0;
+      Object.keys(obj.todos).forEach(function(cat) {
+        if (Array.isArray(obj.todos[cat])) {
+          obj.todos[cat].forEach(function(taskText) {
+            if (typeof taskText === 'string' && taskText.trim()) {
+              todos.push({ id: Date.now() * 1000 + added, text: taskText.trim(), meeting: '', cat: cat.toLowerCase(), date: '' });
+              added++;
+            }
+          });
+        }
+      });
+      saveTodos();
+      localStorage.setItem(TODOS_SYNCED_KEY, obj.lastModified);
+      console.log('[SlackNotes] todos: synced from feed (' + obj.lastModified + ')');
+    }
   }
+
   if (document.getElementById('todoScreen').classList.contains('active')) {
     renderTodos(); updateTodoBadge();
   }
@@ -1661,7 +1679,8 @@ function toast(msg, type) {
 }
 
 // ── Todo ──────────────────────────────────────────────────────────────
-const TODO_KEY = 'slacknotes_todos';
+const TODO_KEY         = 'slacknotes_todos';
+const TODOS_SYNCED_KEY = 'slacknotes_todos_synced'; // ISO timestamp of last feed sync
 const CORE_CATS = {
   'do':       { label: '🎯 Do',       hd: '#2d6a4f', bg: '#e8f5f0', stripe: '#ddf0e8' },
   'delegate': { label: '🤝 Delegate',  hd: '#1a56db', bg: '#e8f0fb', stripe: '#dde8f8' },
