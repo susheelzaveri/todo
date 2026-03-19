@@ -677,7 +677,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.17</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.18</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -938,15 +938,24 @@ function saveCfg(updates) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...cfg, ...updates }));
 }
 
-// ── syncRefreshIcon ──────────────────────────────────────────────────
-// Shows ⟳ when a Data URL is configured, 📋 otherwise
+// ── syncRefreshIcon + markRefreshTime ────────────────────────
 function syncRefreshIcon() {
   const cfg = loadCfg();
-  const icon = (cfg.jsonUrl && cfg.jsonUrl.startsWith('https://')) ? '⟳' : '📋';
+  const icon = (cfg.jsonUrl && cfg.jsonUrl.startsWith('https://')) ? '⦿' : '📋';
+  const lastRaw = localStorage.getItem('slacknotes_last_refresh');
+  const lastStr = lastRaw
+    ? 'Last refreshed ' + new Date(lastRaw).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : (cfg.jsonUrl ? 'Refresh data' : 'Paste data');
   ['refreshBtn', 'refreshBtn2'].forEach(function(id) {
     const el = document.getElementById(id);
-    if (el) el.textContent = icon;
+    if (!el) return;
+    el.textContent = icon;
+    el.title = lastStr;
   });
+}
+function markRefreshTime() {
+  localStorage.setItem('slacknotes_last_refresh', new Date().toISOString());
+  syncRefreshIcon();
 }
 
 // ── Decryption key storage (separate from cfg to match spec) ─────────
@@ -1019,6 +1028,7 @@ async function fetchAndDecrypt(silent) {
   }
 
   document.getElementById('loadingOverlay').classList.remove('show');
+  markRefreshTime();
   if (!silent) toast('Data refreshed ✓', 'success');
   return true;
 }
@@ -1347,6 +1357,7 @@ async function pasteMeetings() {
   if (todos.length !== before.t || (obj.todos)) parts.push(todos.length + ' task' + (todos.length !== 1 ? 's' : ''));
   if (obj.people && obj.people.length) parts.push(obj.people.length + ' person' + (obj.people.length !== 1 ? 's' : ''));
   if (!parts.length) { toast('Nothing loaded — check keys', 'error'); return; }
+  markRefreshTime();
   toast(parts.join(' & ') + ' loaded ✓', 'success');
 }
 
@@ -1513,6 +1524,9 @@ function autoUpdateMeeting(data) {
     sel.classList.toggle('has-value', globalIdx !== '-1');
     sel.style.opacity = '0.4';
     setTimeout(() => sel.style.opacity = '1', 300);
+    // Sync discussion panel + note draft to new meeting
+    updateDiscussPanel();
+    restoreNoteForCurrentMeeting();
   }
 }
 
@@ -1935,11 +1949,16 @@ async function completePersonTask(personName, bucket, taskText) {
   toast('Done & sent to Slack ✓', 'success');
 }
 
-function buildDiscussSection() {
-  // Returns a text block of all discussion points grouped by meeting.
-  // Includes both agenda items (moved from todos) and JSON points.
+function buildDiscussSection(personName) {
+  // Scoped to meetings with agenda from this person (person view)
+  // or all meetings with any points (My Tasks view).
+  let titles = Object.keys(discussData);
+  if (personName) {
+    // Person view: only include meetings that have agenda items
+    titles = titles.filter(t => discussData[t] && discussData[t].agenda && discussData[t].agenda.length > 0);
+  }
   let section = '';
-  Object.keys(discussData).forEach(function(title) {
+  titles.forEach(function(title) {
     const data   = discussData[title];
     const agenda = (data && data.agenda) ? data.agenda.filter(Boolean) : [];
     const points = (data && data.points) ? data.points.filter(Boolean) : [];
@@ -1987,7 +2006,7 @@ function shareTodos() {
   }
 
   // Append discussion points grouped by meeting (both agenda + JSON points)
-  const discussSection = buildDiscussSection();
+  const discussSection = buildDiscussSection(selectedPerson || null);
   if (discussSection) bodyText += discussSection;
 
   const NEO_FOOTER = '\n\n---\nSent by Neo \u2014 The System Behind the Leader (Susheel).';
@@ -2004,8 +2023,8 @@ function closeShareModal(e) {
 function openMailto() {
   const text = document.getElementById('sharePreview').value || window._shareText || '';
   const mailto = 'mailto:?subject=' + encodeURIComponent(window._shareSubject || '') + '&body=' + encodeURIComponent(text);
-  const w = window.open(mailto, '_blank');
-  if (!w) window.location.href = mailto;
+  // Use location.href directly — window.open is blocked for mailto on iOS Safari
+  window.location.href = mailto;
 }
 function copyShareContent() {
   const text = document.getElementById('sharePreview').value || window._shareText || '';
