@@ -366,16 +366,37 @@ input[type="color"] {
   background: var(--cat-hd); color: #fff;
 }
 .todo-cat-header .cat-count { font-size: 10px; opacity: 0.7; font-weight: 400; }
+.todo-row-wrap {
+  position: relative; overflow: hidden;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.todo-row-wrap:last-child { border-bottom: none; }
+.todo-row-copy-btn {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  width: 72px; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 3px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.todo-row-copy-btn:active { opacity: 0.8; }
+.todo-row-copy-icon { font-size: 18px; }
+.todo-row-copy-label {
+  font-family: 'Courier Prime', monospace; font-size: 9px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: #fff; font-weight: 700;
+}
 .todo-row {
   display: flex; align-items: flex-start; gap: 12px;
   padding: 13px 16px; background: var(--cat-bg);
-  border-bottom: 1px solid rgba(0,0,0,0.05);
-  cursor: pointer; transition: opacity 0.25s, transform 0.25s;
+  cursor: pointer;
+  transition: transform 0.22s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.25s;
   -webkit-tap-highlight-color: transparent;
+  position: relative; z-index: 1;
 }
-.todo-row:last-child { border-bottom: none; }
 .todo-row.alt { background: var(--cat-stripe); }
 .todo-row:active { opacity: 0.7; }
+.todo-row.swiped { transform: translateX(-72px); }
 .todo-row-check {
   width: 22px; height: 22px; border-radius: 50%;
   border: 2px solid var(--cat-hd); flex-shrink: 0; margin-top: 1px;
@@ -677,7 +698,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.18</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.20</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -809,7 +830,8 @@ input[type="color"] {
         <span class="person-select-arrow">▼</span>
       </div>
       <button class="topbar-btn" onclick="shareTodos()" title="Share">✉️</button>
-      <button class="topbar-btn" id="refreshBtn2" onclick="refreshData()" title="Refresh / Paste data">📋</button>
+      <button class="topbar-btn" id="copyAllBtn" onclick="copyTodos(null)" title="Copy all tasks">📋</button>
+      <button class="topbar-btn" id="refreshBtn2" onclick="refreshData()" title="Refresh data">⟳</button>
       <button class="topbar-btn" onclick="openSettings()" title="Settings">⚙</button>
     </div>
   </div>
@@ -1801,7 +1823,7 @@ function renderTodos() {
           e.stopPropagation(); completePersonTask(selectedPerson, bucket, taskText);
         });
         attachLongPress(row, function() { openMeetingPicker(null, taskText, selectedPerson, bucket); });
-        section.appendChild(row);
+        section.appendChild(wrapRowForSwipe(row, taskText));
       });
       scroll.appendChild(section);
     });
@@ -1829,6 +1851,8 @@ function renderTodos() {
     const hdr = document.createElement('div');
     hdr.className = 'todo-cat-header';
     hdr.innerHTML = '<span>' + col.label + '</span><span class="cat-count">' + items.length + ' task' + (items.length !== 1 ? 's' : '') + '</span>';
+    hdr.title = 'Long press to copy this category';
+    attachLongPress(hdr, (function(cid) { return function() { copyTodos(cid); }; })(catId));
     section.appendChild(hdr);
     items.forEach(function(t, idx) {
       const row = document.createElement('div');
@@ -1842,7 +1866,7 @@ function renderTodos() {
         + '<div class="todo-row-body"><div class="todo-row-text">' + escapeHtml(t.text) + '</div>' + metaHtml + '</div>';
       row.querySelector('.todo-row-check').addEventListener('click', function(e) { e.stopPropagation(); completeTodo(t.id); });
       attachLongPress(row, function() { openMeetingPicker(t.id, t.text, null, null); });
-      section.appendChild(row);
+      section.appendChild(wrapRowForSwipe(row, t.text));
     });
     scroll.appendChild(section);
   });
@@ -1969,6 +1993,57 @@ function buildDiscussSection(personName) {
     section += '\n';
   });
   return section ? 'Discussion Points\n\n' + section : '';
+}
+
+// ── Build plain-text task list ───────────────────────────────────────
+// catId = null → all visible tasks; catId = string → that category only
+function buildTodoText(catId) {
+  let text = '';
+  if (selectedPerson) {
+    const p = people.find(p => p.person === selectedPerson);
+    if (!p || !p.buckets) return '';
+    text += 'Tasks for ' + selectedPerson + '\n';
+    if (p.date) text += 'Last updated ' + p.date + '\n';
+    text += '\n';
+    Object.keys(p.buckets).forEach(function(bucket) {
+      if (catId && bucket !== catId) return;
+      const bData = p.buckets[bucket];
+      if (!bData || !bData.todos || !bData.todos.length) return;
+      const label = bucket.charAt(0).toUpperCase() + bucket.slice(1);
+      text += label + ':\n';
+      if (bData.summary) text += '  ' + bData.summary + '\n';
+      bData.todos.forEach(t => text += '  \u2022 ' + t + '\n');
+      text += '\n';
+    });
+  } else {
+    if (!todos.length) return '';
+    const catIds = catId ? [catId] : [];
+    if (!catId) todos.forEach(t => { if (catIds.indexOf(t.cat) === -1) catIds.push(t.cat); });
+    catIds.sort((a, b) => getCatOrder(a) - getCatOrder(b) || a.localeCompare(b));
+    if (!catId) text += 'My Tasks\n\n';
+    catIds.forEach(function(cid) {
+      const items = todos.filter(t => t.cat === cid);
+      if (!items.length) return;
+      const col = getCatColors(cid);
+      text += col.label + ':\n';
+      items.forEach(t => text += '  \u2022 ' + t.text + (t.meeting ? ' (' + t.meeting + ')' : '') + '\n');
+      text += '\n';
+    });
+  }
+  return text.trim();
+}
+
+// One-tap copy: catId=null copies all, catId=string copies that category
+async function copyTodos(catId) {
+  const text = buildTodoText(catId);
+  if (!text) { toast('Nothing to copy', 'error'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    const label = catId ? getCatColors(catId).label : (selectedPerson || 'Tasks');
+    toast('\uD83D\uDCCB ' + label + ' copied \u2713', 'success');
+  } catch(e) {
+    toast('Clipboard access denied', 'error');
+  }
 }
 
 function shareTodos() {
@@ -2445,7 +2520,73 @@ function attachLongPress(el, onLongPress) {
   el.addEventListener('mouseleave', cancel);
 }
 
+// ── Swipe-left to reveal copy button ───────────────────────────
+const SWIPE_COPY_PX = 72; // width of copy button reveal
+let _swipedRow = null;    // currently open row
+
+function wrapRowForSwipe(row, taskText) {
+  const wrap = document.createElement('div');
+  wrap.className = 'todo-row-wrap';
+
+  // Copy button behind the row
+  const copyBtn = document.createElement('div');
+  copyBtn.className = 'todo-row-copy-btn';
+  copyBtn.innerHTML = '<span class="todo-row-copy-icon">\uD83D\uDCCB</span>'
+                    + '<span class="todo-row-copy-label">Copy</span>';
+  copyBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(taskText).then(function() {
+      toast('\uD83D\uDCCB Copied \u2713', 'success');
+    }).catch(function() { toast('Clipboard access denied', 'error'); });
+    closeSwipedRow();
+  });
+
+  wrap.appendChild(copyBtn);
+  wrap.appendChild(row);
+
+  // Touch swipe handling
+  let startX = 0, startY = 0, isDragging = false;
+  row.addEventListener('touchstart', function(e) {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    isDragging = false;
+  }, { passive: true });
+  row.addEventListener('touchmove', function(e) {
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!isDragging && Math.abs(dy) > Math.abs(dx)) return; // vertical scroll
+    isDragging = true;
+    if (dx < 0) e.preventDefault(); // block scroll when swiping left
+  }, { passive: false });
+  row.addEventListener('touchend', function(e) {
+    if (!isDragging) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (dx < -40) openSwipedRow(row);
+    else if (dx > 20) closeSwipedRow();
+  }, { passive: true });
+
+  // Tap outside to close
+  row.addEventListener('click', function() {
+    if (_swipedRow && _swipedRow !== row) closeSwipedRow();
+  });
+
+  return wrap;
+}
+
+function openSwipedRow(row) {
+  if (_swipedRow && _swipedRow !== row) closeSwipedRow();
+  row.classList.add('swiped');
+  _swipedRow = row;
+}
+function closeSwipedRow() {
+  if (_swipedRow) { _swipedRow.classList.remove('swiped'); _swipedRow = null; }
+}
+
+// Close any open swipe row when scrolling the todo list
+document.addEventListener('scroll', closeSwipedRow, { passive: true, capture: true });
+
 init();
+
 </script>
 
 <!-- Share modal -->
