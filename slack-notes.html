@@ -85,6 +85,18 @@ body { display: flex; flex-direction: column; min-height: 100dvh; }
   color: var(--ink-light); width: 100%; cursor: pointer;
 }
 .btn-secondary:active { opacity: 0.7; }
+.btn-danger {
+  background: none; border: 1.5px solid #c0392b; border-radius: var(--radius);
+  padding: 14px 17px; font-family: 'Lato', sans-serif; font-size: 14px;
+  color: #c0392b; width: 100%; cursor: pointer; transition: all 0.15s;
+}
+.btn-danger:active { background: #c0392b; color: #fff; }
+.storage-error-banner {
+  background: rgba(192,57,43,0.08); border: 1.5px solid rgba(192,57,43,0.3);
+  border-radius: var(--radius); padding: 12px 16px; font-size: 13px;
+  color: #c0392b; line-height: 1.5; display: none;
+}
+.storage-error-banner.visible { display: block; }
 
 /* Theme swatches */
 .theme-swatches { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
@@ -698,7 +710,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.20</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.23</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -747,6 +759,8 @@ input[type="color"] {
     </div>
     <button class="btn-primary" onclick="saveSetup()">Save &amp; Open →</button>
     <button class="btn-secondary" id="backBtn" onclick="goBack()" style="display:none">← Back</button>
+    <div class="storage-error-banner" id="storageErrorBanner"></div>
+    <button class="btn-danger" id="clearStorageBtn" onclick="confirmClearStorage()">🗑️ Clear App Data</button>
   </div>
 </div>
 
@@ -1243,16 +1257,54 @@ async function refreshData() {
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────
+function showStorageError(msg) {
+  try { renderSwatches(loadCfg().theme || '#2d6a4f'); } catch(e) { renderSwatches('#2d6a4f'); }
+  showScreen('setupScreen');
+  document.getElementById('setupTitle').innerHTML = 'Storage error<br><strong>detected.</strong>';
+  document.getElementById('backBtn').style.display = 'none';
+  const banner = document.getElementById('storageErrorBanner');
+  banner.textContent = '⚠️ ' + msg + ' — your settings are intact. Use "Clear App Data" below to reset.';
+  banner.classList.add('visible');
+  document.getElementById('clearStorageBtn').style.display = 'block';
+}
+
+function confirmClearStorage() {
+  if (!confirm('Clear all tasks, meetings, people and discussion points?\n\nYour webhook, channel, data URL, decryption key and shortcuts will be kept.')) return;
+  clearAppData();
+}
+
+function clearAppData() {
+  const keep = new Set(['slacknotes_v4', 'slacknotes_dec_key', 'slacknotes_shortcuts']);
+  const toRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && !keep.has(k)) toRemove.push(k);
+  }
+  toRemove.forEach(k => localStorage.removeItem(k));
+  todos = []; people = []; discussData = {}; meetings = [];
+  selectedPerson = null; _lastDataJson = null;
+  document.getElementById('storageErrorBanner').classList.remove('visible');
+  toast('App data cleared ✓', 'success');
+  setTimeout(() => { init(); }, 300);
+}
+
 function init() {
   selectedTypes.add(4);
   renderActionTypes();
   initSpeech();
-  const cfg = loadCfg();
-  applyTheme(cfg.theme || '#2d6a4f');
-  loadTodos(); loadPeople(); loadDiscuss();
-  populatePersonSelect(); updateTodoBadge();
-  loadShortcuts();
-  sweepExpiredNotes();
+  let cfg;
+  try {
+    cfg = loadCfg();
+    applyTheme(cfg.theme || '#2d6a4f');
+    loadTodos(); loadPeople(); loadDiscuss();
+    populatePersonSelect(); updateTodoBadge();
+    loadShortcuts();
+    sweepExpiredNotes();
+  } catch(e) {
+    console.error('[SlackNotes] Storage load error:', e);
+    showStorageError('Could not load app data (' + e.message + ')');
+    return;
+  }
   if (cfg.meetings && Array.isArray(cfg.meetings) && cfg.meetings.length > 0) {
     meetings = cfg.meetings;
     populateMeetingSelect(meetings, true);
@@ -1827,6 +1879,7 @@ function renderTodos() {
       });
       scroll.appendChild(section);
     });
+    renderPersonDiscussion(selectedPerson, scroll);
     return;
   }
 
@@ -1871,6 +1924,51 @@ function renderTodos() {
     scroll.appendChild(section);
   });
   updateTodoBadge();
+}
+
+// Show discussion points for a person in the To Do person view
+function renderPersonDiscussion(personName, scroll) {
+  const relevant = Object.keys(discussData).filter(function(title) {
+    const d = discussData[title];
+    if (!d) return false;
+    return (d.agenda || []).some(a => agendaPerson(a) === personName);
+  });
+  if (!relevant.length) return;
+  const hdrDiv = document.createElement('div');
+  hdrDiv.style.cssText = 'font-family:"Courier Prime",monospace;font-size:11px;font-weight:700;'
+    + 'letter-spacing:0.08em;text-transform:uppercase;color:var(--accent);padding:16px 0 6px;';
+  hdrDiv.textContent = '\uD83D\uDCAC Discussion Points';
+  scroll.appendChild(hdrDiv);
+  relevant.forEach(function(title) {
+    const data   = discussData[title];
+    const agenda = (data.agenda || []).filter(a => agendaPerson(a) === personName);
+    const points = data.points || [];
+    const meetLbl = document.createElement('div');
+    meetLbl.style.cssText = 'font-family:"Courier Prime",monospace;font-size:10px;'
+      + 'color:var(--ink-light);letter-spacing:0.04em;padding:6px 0 2px;';
+    meetLbl.textContent = title;
+    scroll.appendChild(meetLbl);
+    const section = document.createElement('div');
+    section.className = 'todo-category';
+    section.style.setProperty('--cat-hd', 'var(--accent)');
+    section.style.setProperty('--cat-bg', 'var(--accent-light)');
+    section.style.setProperty('--cat-stripe', 'var(--accent-light)');
+    agenda.forEach(function(item, idx) {
+      const pt  = agendaText(item);
+      const row = document.createElement('div');
+      row.className = 'todo-row' + (idx % 2 ? ' alt' : '');
+      row.innerHTML = '<span class="discuss-agenda-tag" style="flex-shrink:0;margin-top:2px">agenda</span>'
+        + '<div class="todo-row-body"><div class="todo-row-text">' + escapeHtml(pt) + '</div></div>';
+      section.appendChild(row);
+    });
+    points.forEach(function(pt, idx) {
+      const row = document.createElement('div');
+      row.className = 'todo-row' + ((agenda.length + idx) % 2 ? ' alt' : '');
+      row.innerHTML = '<div class="todo-row-body"><div class="todo-row-text">' + escapeHtml(pt) + '</div></div>';
+      section.appendChild(row);
+    });
+    scroll.appendChild(section);
+  });
 }
 
 function addTodoWithCat(text, meeting, cat) {
@@ -1974,22 +2072,19 @@ async function completePersonTask(personName, bucket, taskText) {
 }
 
 function buildDiscussSection(personName) {
-  // Scoped to meetings with agenda from this person (person view)
-  // or all meetings with any points (My Tasks view).
-  let titles = Object.keys(discussData);
-  if (personName) {
-    // Person view: only include meetings that have agenda items
-    titles = titles.filter(t => discussData[t] && discussData[t].agenda && discussData[t].agenda.length > 0);
-  }
   let section = '';
-  titles.forEach(function(title) {
-    const data   = discussData[title];
-    const agenda = (data && data.agenda) ? data.agenda.filter(Boolean) : [];
-    const points = (data && data.points) ? data.points.filter(Boolean) : [];
-    if (!agenda.length && !points.length) return;
+  Object.keys(discussData).forEach(function(title) {
+    const data = discussData[title];
+    const allAgenda = (data && data.agenda) ? data.agenda.filter(Boolean) : [];
+    const points    = (data && data.points) ? data.points.filter(Boolean) : [];
+    const agenda = personName
+      ? allAgenda.filter(a => agendaPerson(a) === personName)
+      : allAgenda;
+    const showPoints = personName ? agenda.length > 0 : true;
+    if (!agenda.length && (!showPoints || !points.length)) return;
     section += title + ':\n';
-    agenda.forEach(function(pt) { section += '  [agenda] ' + pt + '\n'; });
-    points.forEach(function(pt) { section += '  \u2022 '  + pt + '\n'; });
+    agenda.forEach(function(item) { section += '  [agenda] ' + agendaText(item) + '\n'; });
+    if (showPoints) points.forEach(function(pt) { section += '  \u2022 ' + pt + '\n'; });
     section += '\n';
   });
   return section ? 'Discussion Points\n\n' + section : '';
@@ -2267,6 +2362,9 @@ function saveDiscuss(obj) {
   localStorage.setItem(DISCUSS_KEY, JSON.stringify(discussData));
 }
 function saveDiscussLocal() { localStorage.setItem(DISCUSS_KEY, JSON.stringify(discussData)); }
+// Agenda items: {text,person} objects OR legacy bare strings
+function agendaText(a)   { return typeof a === 'object' ? a.text   : a; }
+function agendaPerson(a) { return typeof a === 'object' ? a.person : null; }
 function getSelectedMeetingTitle() {
   const sel = document.getElementById('meetingSelect');
   if (!sel || sel.value === '') return null;
@@ -2289,7 +2387,8 @@ function updateDiscussPanel() {
   panel.classList.add('visible');
   countEl.textContent = total > 0 ? total + ' point' + (total !== 1 ? 's' : '') : '';
   body.innerHTML = '';
-  agenda.forEach(function(pt) {
+  agenda.forEach(function(item) {
+    const pt = agendaText(item);
     const meetingTitle = title;
     const row = document.createElement('div'); row.className = 'discuss-point';
     row.innerHTML = '<span class="discuss-agenda-tag">agenda</span>'
@@ -2453,7 +2552,9 @@ async function assignToMeeting(meetingTitle) {
   _pickerTodo = null;
   if (!discussData[meetingTitle]) discussData[meetingTitle] = { points: [], agenda: [] };
   if (!discussData[meetingTitle].agenda) discussData[meetingTitle].agenda = [];
-  if (!discussData[meetingTitle].agenda.includes(text)) discussData[meetingTitle].agenda.push(text);
+  const agendaItem = { text: text, person: personName || null };
+  const alreadyExists = discussData[meetingTitle].agenda.some(a => agendaText(a) === text);
+  if (!alreadyExists) discussData[meetingTitle].agenda.push(agendaItem);
   saveDiscussLocal(); updateDiscussPanel();
   if (personName) {
     const p = people.find(p => p.person === personName);
@@ -2476,7 +2577,7 @@ async function completeAgendaItem(text, meetingTitle) {
   try { const res = await fetch(cfg.webhook, { method: 'POST', body: JSON.stringify({ message: msg }) }); ok = res.ok; } catch {}
   if (!ok) { toast('Send failed — item kept', 'error'); return; }
   if (discussData[meetingTitle] && discussData[meetingTitle].agenda) {
-    discussData[meetingTitle].agenda = discussData[meetingTitle].agenda.filter(t => t !== text);
+    discussData[meetingTitle].agenda = discussData[meetingTitle].agenda.filter(t => agendaText(t) !== text);
     saveDiscussLocal();
   }
   updateDiscussPanel();
@@ -2518,6 +2619,8 @@ function attachLongPress(el, onLongPress) {
   el.addEventListener('mousedown', start);
   el.addEventListener('mouseup', end);
   el.addEventListener('mouseleave', cancel);
+  // Expose cancel so swipe handler can abort long press on horizontal move
+  el._cancelLongPress = cancel;
 }
 
 // ── Swipe-left to reveal copy button ───────────────────────────
@@ -2555,6 +2658,8 @@ function wrapRowForSwipe(row, taskText) {
     const dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
     if (!isDragging && Math.abs(dy) > Math.abs(dx)) return; // vertical scroll
+    // Cancel long press as soon as horizontal intent is clear (>8px)
+    if (!isDragging && Math.abs(dx) > 8 && row._cancelLongPress) row._cancelLongPress();
     isDragging = true;
     if (dx < 0) e.preventDefault(); // block scroll when swiping left
   }, { passive: false });
