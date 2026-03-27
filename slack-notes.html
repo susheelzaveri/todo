@@ -173,7 +173,7 @@ input[type="color"] {
 }
 .day-pill.today { border-color: var(--accent); color: var(--accent); }
 .day-pill.today.active { background: var(--accent); color: #fff; }
-.day-pill.empty { opacity: 0.35; cursor: default; pointer-events: none; }
+.day-pill.empty { opacity: 0.35; }
 .day-pill-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
 .day-pill-meta {
   font-size: 9px; font-weight: 400; letter-spacing: 0.02em;
@@ -710,7 +710,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.23</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.26</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -1517,18 +1517,15 @@ function buildDayPills(data) {
       pill.appendChild(metaSpan);
     }
 
-    if (!isEmpty) {
-      pill.addEventListener('click', () => selectDayPill(iso));
-    }
+    pill.addEventListener('click', () => selectDayPill(iso));
     pillsEl.appendChild(pill);
   });
 
   // Auto-select: today if it has meetings, else nearest day this week with meetings
   const datesWithMeetings = data.map(m => getMeetingDate(m));
   const thisWeekWithMeetings = pillDays.filter(d => datesWithMeetings.includes(d));
-  const activePill = thisWeekWithMeetings.includes(today)
-    ? today
-    : (thisWeekWithMeetings.length ? thisWeekWithMeetings[0] : today);
+  // Always default to today so the current date is selected on load
+  const activePill = today;
   selectDayPill(activePill, false);
 }
 
@@ -1931,6 +1928,7 @@ function renderPersonDiscussion(personName, scroll) {
   const relevant = Object.keys(discussData).filter(function(title) {
     const d = discussData[title];
     if (!d) return false;
+    // Only meetings where this person has agenda items
     return (d.agenda || []).some(a => agendaPerson(a) === personName);
   });
   if (!relevant.length) return;
@@ -1941,7 +1939,7 @@ function renderPersonDiscussion(personName, scroll) {
   scroll.appendChild(hdrDiv);
   relevant.forEach(function(title) {
     const data   = discussData[title];
-    const agenda = (data.agenda || []).filter(a => agendaPerson(a) === personName);
+    const agenda = (data.agenda || []);
     const points = data.points || [];
     const meetLbl = document.createElement('div');
     meetLbl.style.cssText = 'font-family:"Courier Prime",monospace;font-size:10px;'
