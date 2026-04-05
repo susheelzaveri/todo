@@ -710,7 +710,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.27</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.29</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -1787,15 +1787,12 @@ function getCatColors(catId) {
     let hash = 0;
     for (let i = 0; i < catId.length; i++) hash = (hash * 31 + catId.charCodeAt(i)) & 0xffffffff;
     const pal = DYN_PALETTE[Math.abs(hash) % DYN_PALETTE.length];
-    dynColorCache[catId] = { label: '📌 ' + catId.charAt(0).toUpperCase() + catId.slice(1), ...pal };
+    dynColorCache[catId] = { label: '📌 ' + getBucketLabel(catId), ...pal };
   }
   return dynColorCache[catId];
 }
-function getCatOrder(catId) {
-  const fixed = ['do','delegate','decide','delete'];
-  const idx = fixed.indexOf(catId);
-  return idx >= 0 ? idx : 999;
-}
+// Delegates to getBucketOrder so both views share identical ordering
+function getCatOrder(catId) { return getBucketOrder(catId); }
 let todos = [];
 function loadTodos() {
   try { todos = JSON.parse(localStorage.getItem(TODO_KEY)) || []; } catch { todos = []; }
@@ -2035,8 +2032,10 @@ const BUCKET_PALETTE = [
   { hd: '#8e3a59', bg: '#fceef4', stripe: '#f8e2ec' },
   { hd: '#2c5f8a', bg: '#e4eff8', stripe: '#d4e6f4' },
 ];
+// Single source of truth for ordering across My Tasks and Person view
 const BUCKET_ORDER = {
-  'goals': 0, 'goals_week': 1, 'goals_month': 2, 'goals_quarter': 3
+  'goals': 0, 'goals_week': 1, 'goals_month': 2, 'goals_quarter': 3,
+  'do': 4, 'delegate': 5, 'decide': 6, 'delete': 7
 };
 const BUCKET_LABELS = {
   'goals': 'Goals',
