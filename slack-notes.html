@@ -710,7 +710,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.26</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.27</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -1330,8 +1330,9 @@ function init() {
     }
     showMain(cfg);
     if (hasUrl && hasKey) {
-      setTimeout(function() { fetchAndDecrypt(true); }, 100);
-      //startDataPoll();
+      // Auto-fetch and poll disabled - use refresh button manually
+      // setTimeout(function() { fetchAndDecrypt(true); }, 100);
+      // startDataPoll();
     }
   } else {
     showScreen('setupScreen');
@@ -1394,9 +1395,8 @@ function saveSetup() {
   syncRefreshIcon();
   showMain({ webhook, channel });
   toast('Settings saved ✓', 'success');
-  if (jsonUrl && decKey) {
-    setTimeout(() => { fetchAndDecrypt(true); startDataPoll(); }, 200);
-  }
+  // Auto-fetch after save disabled
+  // if (jsonUrl && decKey) { setTimeout(() => { fetchAndDecrypt(true); startDataPoll(); }, 200); }
 }
 
 // ── Auto-save draft ───────────────────────────────────────────────────
@@ -1835,7 +1835,8 @@ function renderTodos() {
   if (selectedPerson) {
     const p = people.find(p => p.person === selectedPerson);
     if (!p || !p.buckets) { empty.style.display = 'flex'; return; }
-    const bucketKeys = Object.keys(p.buckets);
+    const bucketKeys = Object.keys(p.buckets)
+      .sort((a, b) => getBucketOrder(a) - getBucketOrder(b) || a.localeCompare(b));
     const hasTasks = bucketKeys.some(b => p.buckets[b].todos && p.buckets[b].todos.length > 0);
     if (!hasTasks) { empty.style.display = 'flex'; empty.querySelector('.todo-empty-text').textContent = 'No tasks for ' + selectedPerson; return; }
     empty.style.display = 'none';
@@ -1856,7 +1857,7 @@ function renderTodos() {
       section.style.setProperty('--cat-stripe', col.stripe);
       const hdr = document.createElement('div');
       hdr.className = 'todo-cat-header';
-      const bucketLabel = bucket.charAt(0).toUpperCase() + bucket.slice(1);
+      const bucketLabel = getBucketLabel(bucket);
       const summaryHtml = bData.summary ? '<div class="todo-cat-summary">' + escapeHtml(bData.summary) + '</div>' : '';
       hdr.innerHTML = '<div class="todo-cat-header-inner"><span>' + bucketLabel + '</span>' + summaryHtml + '</div>'
         + '<span class="cat-count">' + bData.todos.length + ' task' + (bData.todos.length !== 1 ? 's' : '') + '</span>';
@@ -2034,6 +2035,22 @@ const BUCKET_PALETTE = [
   { hd: '#8e3a59', bg: '#fceef4', stripe: '#f8e2ec' },
   { hd: '#2c5f8a', bg: '#e4eff8', stripe: '#d4e6f4' },
 ];
+const BUCKET_ORDER = {
+  'goals': 0, 'goals_week': 1, 'goals_month': 2, 'goals_quarter': 3
+};
+const BUCKET_LABELS = {
+  'goals': 'Goals',
+  'goals_week': 'Goals — Week',
+  'goals_month': 'Goals — Month',
+  'goals_quarter': 'Goals — Quarter'
+};
+function getBucketOrder(name) {
+  const v = BUCKET_ORDER[name.toLowerCase()];
+  return v !== undefined ? v : 999;
+}
+function getBucketLabel(name) {
+  return BUCKET_LABELS[name.toLowerCase()] || name.charAt(0).toUpperCase() + name.slice(1);
+}
 function getBucketColor(bucketName) {
   let hash = 0;
   for (let i = 0; i < bucketName.length; i++) hash = (hash * 31 + bucketName.charCodeAt(i)) & 0xffffffff;
@@ -2098,11 +2115,11 @@ function buildTodoText(catId) {
     text += 'Tasks for ' + selectedPerson + '\n';
     if (p.date) text += 'Last updated ' + p.date + '\n';
     text += '\n';
-    Object.keys(p.buckets).forEach(function(bucket) {
+    Object.keys(p.buckets).sort((a, b) => getBucketOrder(a) - getBucketOrder(b) || a.localeCompare(b)).forEach(function(bucket) {
       if (catId && bucket !== catId) return;
       const bData = p.buckets[bucket];
       if (!bData || !bData.todos || !bData.todos.length) return;
-      const label = bucket.charAt(0).toUpperCase() + bucket.slice(1);
+      const label = getBucketLabel(bucket);
       text += label + ':\n';
       if (bData.summary) text += '  ' + bData.summary + '\n';
       bData.todos.forEach(t => text += '  \u2022 ' + t + '\n');
@@ -2148,10 +2165,10 @@ function shareTodos() {
     if (!p || !p.buckets) { toast('Nothing to share', 'error'); return; }
     subject  = 'Tasks for ' + selectedPerson + ' \u2014 ' + today;
     bodyText = 'Tasks for ' + selectedPerson + '\n' + (p.date ? 'Last updated ' + p.date + '\n' : '') + '\n';
-    Object.keys(p.buckets).forEach(function(bucket) {
+    Object.keys(p.buckets).sort((a, b) => getBucketOrder(a) - getBucketOrder(b) || a.localeCompare(b)).forEach(function(bucket) {
       const bData = p.buckets[bucket];
       if (!bData || !bData.todos || !bData.todos.length) return;
-      const label = bucket.charAt(0).toUpperCase() + bucket.slice(1);
+      const label = getBucketLabel(bucket);
       bodyText += label + ':\n' + (bData.summary ? '  ' + bData.summary + '\n' : '');
       bData.todos.forEach(t => bodyText += '  \u2022 ' + t + '\n');
       bodyText += '\n';
