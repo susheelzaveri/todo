@@ -144,6 +144,10 @@ input[type="color"] {
   cursor: pointer; font-size: 17px; color: var(--ink-light); flex-shrink: 0; transition: all 0.15s;
 }
 .topbar-btn:active { border-color: var(--accent); color: var(--accent); }
+.topbar-btn.briefing-active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+  animation: pulse 1.2s ease-in-out infinite;
+}
 .main-scroll {
   flex: 1; overflow-y: auto; padding: 16px 20px;
   display: flex; flex-direction: column; gap: 14px;
@@ -710,7 +714,7 @@ input[type="color"] {
 <!-- SETUP SCREEN -->
 <div id="setupScreen" class="screen">
   <div class="setup-inner">
-    <div class="wordmark">Slack Notes<span class="version-tag">v2.29</span></div>
+    <div class="wordmark">Slack Notes<span class="version-tag">v2.30</span></div>
     <div class="setup-title" id="setupTitle">Quick notes,<br><strong>straight to Slack.</strong></div>
     <div class="field">
       <div class="field-label">Slack Webhook URL</div>
@@ -779,6 +783,7 @@ input[type="color"] {
         <span class="channel-name" id="channelDisplay">channel</span>
       </div>
       <button class="topbar-btn" id="refreshBtn" onclick="refreshData()" title="Refresh / Paste data">📋</button>
+      <button class="topbar-btn" id="briefingBtn" onclick="toggleBriefing()" title="Read daily briefing">🔊</button>
       <button class="topbar-btn" onclick="openSettings()" title="Settings">⚙</button>
     </div>
   </div>
@@ -2704,7 +2709,129 @@ function closeSwipedRow() {
 // Close any open swipe row when scrolling the todo list
 document.addEventListener('scroll', closeSwipedRow, { passive: true, capture: true });
 
+// ── Daily Briefing (Text-to-Speech) ──────────────────────────────────
+let _briefingActive = false;
+let _briefingQueue  = [];
+let _briefingIdx    = 0;
+
+function toggleBriefing() {
+  if (_briefingActive) { stopBriefing(); return; }
+  startBriefing();
+}
+
+function startBriefing() {
+  if (!window.speechSynthesis) { toast('Speech not supported on this browser', 'error'); return; }
+  const script = buildBriefingScript();
+  if (!script.length) { toast('Nothing to brief \u2014 load meetings first', 'error'); return; }
+  _briefingQueue  = script;
+  _briefingIdx    = 0;
+  _briefingActive = true;
+  const btn = document.getElementById('briefingBtn');
+  if (btn) { btn.textContent = '\u23f9'; btn.classList.add('briefing-active'); btn.title = 'Stop briefing'; }
+  speakNext();
+}
+
+function stopBriefing() {
+  _briefingActive = false;
+  window.speechSynthesis.cancel();
+  const btn = document.getElementById('briefingBtn');
+  if (btn) { btn.textContent = '\uD83D\uDD0A'; btn.classList.remove('briefing-active'); btn.title = 'Read daily briefing'; }
+}
+
+function speakNext() {
+  if (!_briefingActive || _briefingIdx >= _briefingQueue.length) {
+    stopBriefing(); return;
+  }
+  const text = _briefingQueue[_briefingIdx++];
+  const utt  = new SpeechSynthesisUtterance(text);
+  utt.lang   = 'en-US';
+  utt.rate   = 0.95;
+  utt.onend  = function() { if (_briefingActive) speakNext(); };
+  utt.onerror = function(e) {
+    if (e.error !== 'interrupted') { stopBriefing(); toast('Speech error: ' + e.error, 'error'); }
+  };
+  window.speechSynthesis.speak(utt);
+}
+
+function buildBriefingScript() {
+  const now     = new Date();
+  const today   = now.toISOString().slice(0, 10);
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const script  = [];
+
+  const todayMeetings = meetings
+    .filter(m => getMeetingDate(m) === today && parseTimeMins(m.time) >= nowMins)
+    .sort((a, b) => parseTimeMins(a.time) - parseTimeMins(b.time));
+
+  if (!todayMeetings.length && !todos.length) return script;
+
+  script.push('Good ' + getTimeOfDay() + '. Here is your daily briefing.');
+
+  if (todayMeetings.length) {
+    script.push('You have ' + todayMeetings.length + ' meeting' + (todayMeetings.length !== 1 ? 's' : '') + ' remaining today.');
+    todayMeetings.forEach(function(m) {
+      script.push('At ' + (m.time || 'an unspecified time') + '. ' + m.title + '.');
+
+      const dData  = discussData[m.title] || {};
+      const points = (dData.points || []).filter(Boolean);
+      const agenda = (dData.agenda || []).filter(Boolean);
+
+      if (points.length || agenda.length) {
+        script.push('Discussion points for ' + m.title + '.');
+        agenda.forEach(p => script.push(agendaText(p) + '.'));
+        points.forEach(p => script.push(p + '.'));
+      }
+
+      // 1:1 detection: title contains 1:1 OR first name matches a person
+      const is11 = /1.?1|one.on.one/i.test(m.title);
+      const matchedPerson = is11 ? people.find(function(p) {
+        return m.title.toLowerCase().includes(p.person.split(' ')[0].toLowerCase());
+      }) : null;
+
+      if (matchedPerson && matchedPerson.buckets) {
+        script.push('Here are the open items for ' + matchedPerson.person + '.');
+        const bucketKeys = Object.keys(matchedPerson.buckets)
+          .sort((a, b) => getBucketOrder(a) - getBucketOrder(b) || a.localeCompare(b));
+        bucketKeys.forEach(function(bucket) {
+          const bData = matchedPerson.buckets[bucket];
+          if (!bData || !bData.todos || !bData.todos.length) return;
+          script.push(getBucketLabel(bucket) + '.');
+          bData.todos.forEach(t => script.push(t + '.'));
+        });
+      }
+    });
+  }
+
+  if (todos.length) {
+    script.push('Finally, here are your tasks.');
+    const catIds = [];
+    todos.forEach(t => { if (!catIds.includes(t.cat)) catIds.push(t.cat); });
+    catIds.sort((a, b) => getCatOrder(a) - getCatOrder(b) || a.localeCompare(b));
+    catIds.forEach(function(catId) {
+      const items = todos.filter(t => t.cat === catId);
+      if (!items.length) return;
+      script.push(getBucketLabel(catId) + '.');
+      items.forEach(t => script.push(t.text + '.'));
+    });
+  }
+
+  script.push('End of briefing.');
+  return script;
+}
+
+function getTimeOfDay() {
+  const h = new Date().getHours();
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden && _briefingActive) stopBriefing();
+});
+
 init();
+
 
 </script>
 
